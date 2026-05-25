@@ -6,17 +6,22 @@ import {
   useAuth,
 } from '../auth/AuthContext';
 
+import { useNavigate } from 'react-router-dom';
+
 export default function LoginPage() {
 
   const {
     login,
   } = useAuth();
+  
 
   const [email, setEmail] =
     useState('');
 
   const [password, setPassword] =
     useState('');
+
+  const navigate = useNavigate();
 
   async function handleSubmit(
     e: React.FormEvent,
@@ -31,7 +36,7 @@ export default function LoginPage() {
         password,
       );
 
-      alert('Login correcto');
+      navigate('/');
 
     } catch {
 
