@@ -72,6 +72,10 @@ export default function DashboardLayout({
             Pagos
           </Link>
 
+          <Link to="/orders-history">
+            Historial
+          </Link>
+
           <button
             onClick={logout}
 

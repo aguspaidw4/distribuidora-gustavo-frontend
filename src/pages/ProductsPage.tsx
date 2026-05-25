@@ -10,6 +10,10 @@ type Product = {
 
   name: string;
 
+  purchasePrice: string;
+
+  profitMargin: string;
+
   salePrice: string;
 
   stock: number;
@@ -37,6 +41,9 @@ export default function ProductsPage() {
 
   const [stock, setStock] =
     useState('');
+
+  const [editId, setEditId] =
+    useState<number | null>(null);
 
   async function loadProducts() {
 
@@ -69,6 +76,75 @@ export default function ProductsPage() {
 
     loadProducts();
   }
+
+  function editProduct(
+    product: any,
+    ) {
+
+    setEditId(product.id);
+
+    setName(product.name);
+
+    setPurchasePrice(
+        product.purchasePrice,
+    );
+
+    setProfitMargin(
+        product.profitMargin,
+    );
+
+    setStock(
+        String(product.stock),
+    );
+
+    setShowModal(true);
+    }
+
+    async function createProduct(
+        e: React.FormEvent,
+    ) {
+
+        e.preventDefault();
+
+        const payload = {
+            name,
+
+            purchasePrice:
+            Number(purchasePrice),
+
+            profitMargin:
+            Number(profitMargin),
+
+            stock:
+            Number(stock),
+    };
+
+    if (editId) {
+
+        await api.put(
+        `/products/${editId}`,
+        payload,
+        );
+
+    } else {
+
+        await api.post(
+        '/products',
+        payload,
+        );
+    }
+
+    setShowModal(false);
+
+    setEditId(null);
+
+    setName('');
+    setPurchasePrice('');
+    setProfitMargin('');
+    setStock('');
+
+    loadProducts();
+    }
 
   return (
     <div className="p-8">
@@ -184,24 +260,49 @@ export default function ProductsPage() {
 
                 <td className="p-4">
 
-                  <button
+                <div
+                    className="
+                    flex
+                    gap-2
+                    justify-center
+                    "
+                >
+
+                    <button
                     onClick={() =>
-                      deleteProduct(
-                        product.id,
-                      )
+                        editProduct(product)
                     }
 
                     className="
-                      bg-red-600
-                      hover:bg-red-700
-                      px-4
-                      py-2
-                      rounded-lg
+                        bg-yellow-600
+                        hover:bg-yellow-700
+                        px-4
+                        py-2
+                        rounded-lg
                     "
-                  >
-                    Eliminar
-                  </button>
+                    >
+                    Editar
+                    </button>
 
+                    <button
+                    onClick={() =>
+                        deleteProduct(
+                        product.id,
+                        )
+                    }
+
+                    className="
+                        bg-red-600
+                        hover:bg-red-700
+                        px-4
+                        py-2
+                        rounded-lg
+                    "
+                    >
+                    Eliminar
+                    </button>
+
+                </div>
                 </td>
               </tr>
             ))}
@@ -242,7 +343,11 @@ export default function ProductsPage() {
                 mb-6
             "
             >
-            Nuevo Producto
+            {
+              editId
+                ? 'Editar Producto'
+                : 'Nuevo Producto'
+            }
             </h2>
 
             <input
@@ -377,32 +482,4 @@ export default function ProductsPage() {
     }
     </div>
   );
-  async function createProduct(
-    e: React.FormEvent,
-    ) {
-
-    e.preventDefault();
-
-    await api.post('/products', {
-        name,
-
-        purchasePrice:
-        Number(purchasePrice),
-
-        profitMargin:
-        Number(profitMargin),
-
-        stock:
-        Number(stock),
-    });
-
-    setShowModal(false);
-
-    setName('');
-    setPurchasePrice('');
-    setProfitMargin('');
-    setStock('');
-
-    loadProducts();
-    }
 }

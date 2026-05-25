@@ -14,6 +14,14 @@ import DashboardLayout from './layouts/DashboardLayout';
 
 import ProductsPage from './pages/ProductsPage';
 
+import CustomersPage from './pages/CustomersPage';
+
+import OrdersPage from './pages/OrdersPage';
+
+import PaymentsPage from './pages/PaymentsPage';
+
+import OrdersHistoryPage from './pages/OrdersHistoryPage';
+
 function App() {
 
   return (
@@ -52,6 +60,70 @@ function App() {
               <DashboardLayout>
 
                 <ProductsPage />
+
+              </DashboardLayout>
+
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/customers"
+
+          element={
+            <ProtectedRoute>
+
+              <DashboardLayout>
+
+                <CustomersPage />
+
+              </DashboardLayout>
+
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/orders"
+
+          element={
+            <ProtectedRoute>
+
+              <DashboardLayout>
+
+                <OrdersPage />
+
+              </DashboardLayout>
+
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/payments"
+
+          element={
+            <ProtectedRoute>
+
+              <DashboardLayout>
+
+                <PaymentsPage />
+
+              </DashboardLayout>
+
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/orders-history"
+
+          element={
+            <ProtectedRoute>
+
+              <DashboardLayout>
+
+                <OrdersHistoryPage />
 
               </DashboardLayout>
 
