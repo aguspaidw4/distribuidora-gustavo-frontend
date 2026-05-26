@@ -22,6 +22,10 @@ import PaymentsPage from './pages/PaymentsPage';
 
 import OrdersHistoryPage from './pages/OrdersHistoryPage';
 
+import AccountsPage from './pages/AccountsPage';
+
+import ReportsPage from './pages/ReportsPage';
+
 function App() {
 
   return (
@@ -124,6 +128,38 @@ function App() {
               <DashboardLayout>
 
                 <OrdersHistoryPage />
+
+              </DashboardLayout>
+
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/accounts"
+
+          element={
+            <ProtectedRoute>
+
+              <DashboardLayout>
+
+                <AccountsPage />
+
+              </DashboardLayout>
+
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/reports"
+
+          element={
+            <ProtectedRoute>
+
+              <DashboardLayout>
+
+                <ReportsPage />
 
               </DashboardLayout>
 

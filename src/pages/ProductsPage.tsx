@@ -44,6 +44,17 @@ export default function ProductsPage() {
 
   const [editId, setEditId] =
     useState<number | null>(null);
+  
+  const [onlyLowStock, setOnlyLowStock] =
+    useState(false);
+
+  const filteredProducts =
+    onlyLowStock
+      ? products.filter(
+          (product) =>
+            product.stock <= 5,
+        )
+      : products;
 
   async function loadProducts() {
 
@@ -182,6 +193,30 @@ export default function ProductsPage() {
         >
             Nuevo Producto
         </button>
+
+        <button
+          onClick={() =>
+            setOnlyLowStock(
+              !onlyLowStock,
+            )
+          }
+
+          className="
+            bg-yellow-600
+            hover:bg-yellow-700
+            px-4
+            py-2
+            rounded-lg
+            font-bold
+          "
+        >
+          {
+            onlyLowStock
+              ? 'Ver Todos'
+              : 'Stock Bajo'
+          }
+        </button>
+
       </div>
 
       <div
@@ -227,7 +262,7 @@ export default function ProductsPage() {
 
           <tbody>
 
-            {products.map((product) => (
+            {filteredProducts.map((product) => (
 
               <tr
                 key={product.id}
@@ -247,7 +282,25 @@ export default function ProductsPage() {
                 </td>
 
                 <td className="p-4">
-                  {product.stock}
+
+                  <span
+                    className={`
+                      px-3
+                      py-1
+                      rounded-full
+                      font-bold
+
+                      ${
+                        product.stock <= 5
+                          ? 'bg-red-600'
+                          : product.stock <= 10
+                          ? 'bg-yellow-600'
+                          : 'bg-green-600'
+                      }
+                    `}
+                  >
+                    {product.stock}
+                  </span>
                 </td>
 
                 <td className="p-4">

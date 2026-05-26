@@ -112,24 +112,60 @@ export default function OrdersPage() {
 
   async function createOrder() {
 
-    await api.post('/orders', {
-      customerId:
-        Number(customerId),
+    try {
 
-      items: items.map((item) => ({
-        productId:
-          item.productId,
+      if (!customerId) {
 
-        quantity:
-          item.quantity,
-      })),
-    });
+        alert(
+          'Seleccioná un cliente',
+        );
 
-    alert('Pedido creado');
+        return;
+      }
 
-    setCustomerId('');
+      if (items.length === 0) {
 
-    setItems([]);
+        alert(
+          'Agregá productos al pedido',
+        );
+
+        return;
+      }
+
+      await api.post('/orders', {
+
+        customerId:
+          Number(customerId),
+
+        items: items.map((item) => ({
+          productId:
+            item.productId,
+
+          quantity:
+            item.quantity,
+        })),
+      });
+
+      alert(
+        'Pedido creado correctamente',
+      );
+
+      setCustomerId('');
+
+      setItems([]);
+
+    } catch (error: any) {
+
+      console.error(
+        error.response?.data,
+      );
+
+      alert(
+        JSON.stringify(
+          error.response?.data,
+        ),
+      );
+    }
   }
 
   const total =

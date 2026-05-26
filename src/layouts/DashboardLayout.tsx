@@ -76,6 +76,14 @@ export default function DashboardLayout({
             Historial
           </Link>
 
+          <Link to="/accounts">
+            Cuentas Corrientes
+          </Link>
+
+          <Link to="/reports">
+            Reportes
+          </Link>
+
           <button
             onClick={logout}
 

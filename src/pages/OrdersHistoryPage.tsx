@@ -192,6 +192,50 @@ export default function OrdersHistoryPage() {
                     : 'Ver Detalle'
                 }
               </button>
+              <button
+                onClick={async () => {
+
+                  const response =
+                    await api.get(
+                      `/orders/${order.id}/pdf`,
+                      {
+                        responseType: 'blob',
+                      },
+                    );
+
+                  const url =
+                    window.URL.createObjectURL(
+                      new Blob([response.data]),
+                    );
+
+                  const link =
+                    document.createElement('a');
+
+                  link.href = url;
+
+                  link.setAttribute(
+                    'download',
+                    `pedido-${order.id}.pdf`,
+                  );
+
+                  document.body.appendChild(link);
+
+                  link.click();
+
+                  link.remove();
+                }}
+
+                className="
+                  ml-4
+                  bg-green-600
+                  hover:bg-green-700
+                  px-4
+                  py-2
+                  rounded-lg
+                "
+              >
+                PDF
+              </button>
 
               {
                 expandedId === order.id && (
