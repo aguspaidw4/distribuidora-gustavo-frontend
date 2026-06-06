@@ -26,6 +26,12 @@ import AccountsPage from './pages/AccountsPage';
 
 import ReportsPage from './pages/ReportsPage';
 
+import StockPage from './pages/StockPage';
+
+import PurchasesPage from './pages/PurchasesPage';
+
+import PriceListPage from './pages/PriceListPage';
+
 function App() {
 
   return (
@@ -163,6 +169,39 @@ function App() {
 
               </DashboardLayout>
 
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/stock"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <StockPage />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/purchases"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <PurchasesPage />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/price-list"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <PriceListPage />
+              </DashboardLayout>
             </ProtectedRoute>
           }
         />
