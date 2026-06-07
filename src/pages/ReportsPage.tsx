@@ -127,8 +127,8 @@ export default function ReportsPage() {
                     borderRadius: '8px',
                     color: '#fff',
                   }}
-                  formatter={(value: number) => [
-                    `${value} unidades`,
+                  formatter={(value) => [
+                    formatARS(Number(value)),
                     'Vendidos',
                   ]}
                 />
@@ -184,8 +184,8 @@ export default function ReportsPage() {
                     borderRadius: '8px',
                     color: '#fff',
                   }}
-                  formatter={(value: number) => [
-                    formatARS(value),
+                  formatter={(value) => [
+                    formatARS(Number(value)),
                     'Total ventas',
                   ]}
                 />

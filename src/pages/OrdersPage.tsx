@@ -109,8 +109,6 @@ export default function OrdersPage() {
       return;
     }
 
-    // Clave única por producto + presentación
-    const key = `${selectedProduct.id}-${presentation}`;
 
     const existingItem = items.find(
       (i) => i.productId === selectedProduct.id && i.presentation === presentation,
