@@ -5,20 +5,89 @@ type NavItem = {
   to: string;
   label: string;
   icon: string;
+  roles: string[]; // qué roles pueden verlo
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/',               label: 'Dashboard',         icon: '📊' },
-  { to: '/products',       label: 'Productos',         icon: '📦' },
-  { to: '/customers',      label: 'Clientes',          icon: '👥' },
-  { to: '/orders',         label: 'Nuevo Pedido',      icon: '🛒' },
-  { to: '/orders-history', label: 'Historial',         icon: '📋' },
-  { to: '/accounts',       label: 'Cuentas Corrientes',icon: '💰' },
-  { to: '/payments',       label: 'Pagos',             icon: '💳' },
-  { to: '/reports',        label: 'Reportes',          icon: '📈' },
-  { to: '/stock',          label: 'Stock',             icon: '📦' },
-  { to: '/purchases',      label: 'Compras',           icon: '🛍️' },
-  { to: '/price-list',     label: 'Lista de Precios',  icon: '📄' },
+  {
+    to: '/',
+    label: 'Dashboard',
+    icon: '📊',
+    roles: ['ADMIN', 'OWNER'],
+  },
+  {
+    to: '/products',
+    label: 'Productos',
+    icon: '📦',
+    roles: ['ADMIN', 'OWNER'],
+  },
+  {
+    to: '/customers',
+    label: 'Clientes',
+    icon: '👥',
+    roles: ['ADMIN', 'OWNER'],
+  },
+  {
+    to: '/orders',
+    label: 'Nuevo Pedido',
+    icon: '🛒',
+    roles: ['ADMIN', 'OWNER'],
+  },
+  {
+    to: '/orders-history',
+    label: 'Historial',
+    icon: '📋',
+    roles: ['ADMIN', 'OWNER'],
+  },
+  {
+    to: '/accounts',
+    label: 'Cuentas Corrientes',
+    icon: '💰',
+    roles: ['ADMIN', 'OWNER'],
+  },
+  {
+    to: '/payments',
+    label: 'Pagos',
+    icon: '💳',
+    roles: ['ADMIN', 'OWNER'],
+  },
+  {
+    to: '/stock',
+    label: 'Stock',
+    icon: '📦',
+    roles: ['ADMIN', 'OWNER'],
+  },
+  {
+    to: '/purchases',
+    label: 'Compras',
+    icon: '🛍️',
+    roles: ['ADMIN', 'OWNER'],
+  },
+  {
+    to: '/price-list',
+    label: 'Lista de Precios',
+    icon: '📄',
+    roles: ['ADMIN', 'OWNER'],
+  },
+  {
+    to: '/reports',
+    label: 'Reportes',
+    icon: '📈',
+    roles: ['ADMIN', 'OWNER'],
+  },
+  {
+    to: '/users',
+    label: 'Usuarios',
+    icon: '👤',
+    roles: ['ADMIN'], // solo ADMIN
+  },
+  // Vistas del cliente
+  {
+    to: '/my-orders',
+    label: 'Mis Pedidos',
+    icon: '📋',
+    roles: ['CLIENT'],
+  },
 ];
 
 export default function DashboardLayout({
@@ -26,13 +95,17 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const location = useLocation();
 
+  const role = user?.role ?? 'OWNER';
+
+  const visibleItems = NAV_ITEMS.filter((item) =>
+    item.roles.includes(role),
+  );
+
   function isActive(to: string): boolean {
-    if (to === '/') {
-      return location.pathname === '/';
-    }
+    if (to === '/') return location.pathname === '/';
     return location.pathname.startsWith(to);
   }
 
@@ -42,27 +115,29 @@ export default function DashboardLayout({
       {/* Sidebar */}
       <aside className="w-64 bg-gray-800 flex flex-col">
 
-        {/* Logo / nombre */}
+        {/* Logo */}
         <div className="p-6 border-b border-gray-700">
           <h1 className="text-lg font-bold text-white leading-tight">
             Distribuidora
           </h1>
-          <p className="text-sm text-gray-400 mt-0.5">
-            Gustavo
-          </p>
+          <p className="text-sm text-gray-400 mt-0.5">Gustavo</p>
+          {user && (
+            <p className="text-xs text-gray-500 mt-2 truncate">
+              {user.email}
+            </p>
+          )}
         </div>
 
-        {/* Navegación */}
+        {/* Nav */}
         <nav className="flex-1 p-4 flex flex-col gap-1">
-          {NAV_ITEMS.map((item) => (
+          {visibleItems.map((item) => (
             <Link
               key={item.to}
               to={item.to}
               className={`
                 flex items-center gap-3
                 px-4 py-2.5
-                rounded-lg
-                text-sm font-medium
+                rounded-lg text-sm font-medium
                 transition-colors
                 ${isActive(item.to)
                   ? 'bg-blue-600 text-white'
@@ -80,14 +155,10 @@ export default function DashboardLayout({
           <button
             onClick={logout}
             className="
-              w-full
-              flex items-center gap-3
-              px-4 py-2.5
-              rounded-lg
-              text-sm font-medium
-              text-gray-400
-              hover:bg-red-600
-              hover:text-white
+              w-full flex items-center gap-3
+              px-4 py-2.5 rounded-lg
+              text-sm font-medium text-gray-400
+              hover:bg-red-600 hover:text-white
               transition-colors
             "
           >
