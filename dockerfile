@@ -9,9 +9,8 @@ RUN npm install
 
 COPY . .
 
-# Variable de entorno para el build — apunta al backend en Docker
-ARG VITE_API_URL=http://localhost:3000
-ENV VITE_API_URL=$VITE_API_URL
+# Forzar la URL de la API hacia el proxy de nginx
+ENV VITE_API_URL=/api
 
 RUN npm run build
 
