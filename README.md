@@ -1,73 +1,119 @@
-# React + TypeScript + Vite
+# Distribuidora Gustavo — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicación web para la gestión integral de la distribuidora: pedidos, clientes, productos, stock, pagos y reportes. Construida con React 19, TypeScript y Vite.
 
-Currently, two official plugins are available:
+## Tecnologías
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **React 19** + **TypeScript** — UI y tipado estático
+- **Vite** — Bundler y servidor de desarrollo
+- **React Router DOM** — Enrutamiento client-side
+- **Axios** — Cliente HTTP con interceptor de autenticación JWT
+- **Tailwind CSS** — Estilos utility-first
+- **Recharts** — Gráficos para el dashboard y reportes
+- **Nginx** — Servidor de producción (contenedor Docker)
 
-## React Compiler
+## Requisitos previos
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Node.js 20+
+- npm 9+
+- Backend corriendo en `http://localhost:3000` (o configurar `VITE_API_URL`)
 
-## Expanding the ESLint configuration
+## Instalación y ejecución
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+```bash
+# Instalar dependencias
+npm install
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+# Modo desarrollo (con proxy hacia el backend en :3000)
+npm run dev
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+# Build de producción
+npm run build
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Previsualizar el build de producción
+npm run preview
+
+# Linting
+npm run lint
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Variables de entorno
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Crear un archivo `.env` en la raíz del proyecto:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```env
+VITE_API_URL=http://localhost:3000
 ```
+
+En producción con Docker/Nginx, el valor es `/api` y el proxy se encarga del ruteo.
+
+## Estructura del proyecto
+
+```
+src/
+├── api/
+│   └── axios.ts              # Cliente Axios con interceptor Bearer token
+├── auth/
+│   └── AuthContext.tsx       # Contexto de autenticación, parsing del JWT
+├── components/
+│   └── ProductSearchSelect.tsx
+├── layouts/
+│   └── DashboardLayout.tsx   # Layout principal con sidebar y navegación
+├── pages/
+│   ├── LoginPage.tsx         # Login + registro multi-paso con tipo fiscal
+│   ├── DashboardPage.tsx
+│   ├── ProductsPage.tsx
+│   ├── CustomersPage.tsx
+│   ├── OrdersPage.tsx
+│   ├── OrdersHistoryPage.tsx
+│   ├── MyOrdersPage.tsx      # Vista del cliente (rol CLIENT)
+│   ├── PaymentsPage.tsx
+│   ├── AccountsPage.tsx
+│   ├── StockPage.tsx
+│   ├── PurchasesPage.tsx
+│   ├── PriceListPage.tsx
+│   ├── ReportsPage.tsx
+│   └── UsersPage.tsx
+├── routes/
+│   └── ProtectedRoute.tsx    # Guard de rutas autenticadas
+├── App.tsx                   # Definición de rutas
+└── main.tsx                  # Punto de entrada
+```
+
+## Roles de usuario
+
+| Rol    | Acceso                                                           |
+|--------|------------------------------------------------------------------|
+| ADMIN  | Acceso completo a todas las secciones                            |
+| OWNER  | Gestión de productos, stock, compras, pedidos y clientes         |
+| CLIENT | Solo puede ver sus propios pedidos (`/my-orders`)               |
+
+## Autenticación
+
+- Login mediante email + contraseña → devuelve JWT
+- Token almacenado en `localStorage`
+- Todas las requests incluyen el header `Authorization: Bearer <token>`
+- El JWT contiene: `userId`, `email`, `role`
+- Registro incluye selección de tipo fiscal argentino:
+  - Consumidor Final
+  - Monotributista
+  - Responsable Inscripto (con validación de CUIT)
+
+## Docker
+
+El frontend usa una build multi-etapa:
+
+```bash
+# Construir imagen
+docker build -t distribuidora-frontend .
+
+# Correr en puerto 80
+docker run -p 80:80 distribuidora-frontend
+```
+
+En producción, Nginx:
+- Sirve los archivos estáticos del build
+- Hace proxy de `/api/*` hacia el backend (`http://backend:3000/`)
+- Redirige todas las rutas a `index.html` para el enrutamiento SPA
+- Aplica caché de 1 año para assets estáticos
+- Habilita compresión gzip
