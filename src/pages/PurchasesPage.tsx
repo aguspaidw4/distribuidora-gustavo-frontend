@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../api/axios';
+import ProductSearchSelect from '../components/ProductSearchSelect';
 
 type Supplier = {
   id: number;
@@ -117,6 +118,12 @@ export default function PurchasesPage() {
   const [savingSupplier, setSavingSupplier] = useState(false);
   const [supplierError, setSupplierError] = useState('');
 
+  // Modal pago a distribuidora
+  const [paymentPurchase, setPaymentPurchase] = useState<Purchase | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [savingPayment, setSavingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
+
   async function loadData() {
     try {
       const [suppRes, prodRes, purchRes] = await Promise.all([
@@ -172,9 +179,7 @@ export default function PurchasesPage() {
       await api.post('/suppliers', {
         name: supplierForm.name.trim(),
         address: supplierForm.address.trim(),
-        cuit: supplierForm.cuit.trim()
-          ? normalizeCuit(supplierForm.cuit)
-          : undefined,
+        cuit: supplierForm.cuit.trim() ? normalizeCuit(supplierForm.cuit) : undefined,
         phone: supplierForm.phone.trim() || undefined,
         notes: supplierForm.notes.trim() || undefined,
       });
@@ -186,6 +191,49 @@ export default function PurchasesPage() {
       setSupplierError(typeof msg === 'string' ? msg : 'Error al guardar la distribuidora');
     } finally {
       setSavingSupplier(false);
+    }
+  }
+
+  // ── Pago a distribuidora ──
+  function openPaymentModal(purchase: Purchase) {
+    setPaymentPurchase(purchase);
+    setPaymentAmount('');
+    setPaymentError('');
+  }
+
+  function closePaymentModal() {
+    setPaymentPurchase(null);
+    setPaymentAmount('');
+    setPaymentError('');
+  }
+
+  async function savePayment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!paymentPurchase) return;
+    setPaymentError('');
+
+    const amount = Number(paymentAmount);
+    if (!amount || amount <= 0) {
+      setPaymentError('Ingresá un monto válido');
+      return;
+    }
+    if (amount > Number(paymentPurchase.pendingAmount)) {
+      setPaymentError(
+        `El monto no puede superar el pendiente de ${formatARS(paymentPurchase.pendingAmount)}`,
+      );
+      return;
+    }
+
+    setSavingPayment(true);
+    try {
+      await api.post(`/purchases/${paymentPurchase.id}/payment`, { amount });
+      closePaymentModal();
+      loadData();
+    } catch (error: any) {
+      const msg = error.response?.data?.message;
+      setPaymentError(typeof msg === 'string' ? msg : 'Error al registrar el pago');
+    } finally {
+      setSavingPayment(false);
     }
   }
 
@@ -286,7 +334,6 @@ export default function PurchasesPage() {
       <div className="bg-gray-800 p-6 rounded-2xl mb-8">
         <h2 className="text-xl font-bold mb-4">Registrar compra</h2>
 
-        {/* Proveedor */}
         <div className="mb-4">
           <label className="block text-sm text-gray-400 mb-1">Distribuidora *</label>
           <select
@@ -299,8 +346,6 @@ export default function PurchasesPage() {
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
-
-          {/* Info distribuidora seleccionada */}
           {selectedSupplier && (selectedSupplier.cuit || selectedSupplier.address) && (
             <div className="mt-2 text-xs text-gray-500 space-x-3">
               {selectedSupplier.cuit && <span>CUIT: {selectedSupplier.cuit}</span>}
@@ -309,52 +354,31 @@ export default function PurchasesPage() {
           )}
         </div>
 
-        {/* Agregar producto */}
         <div className="bg-gray-700 rounded-xl p-4 mb-4">
           <p className="text-sm font-bold text-gray-300 mb-3">Agregar producto</p>
           <div className="grid md:grid-cols-4 gap-3 mb-3">
-            <select
+            <ProductSearchSelect
+              options={products.map((p) => ({
+                id: p.id,
+                label: p.name,
+                sublabel: `stock: ${p.stock}`,
+              }))}
               value={productId}
-              onChange={(e) => {
-                setProductId(e.target.value);
-                const p = products.find((p) => p.id === Number(e.target.value));
+              onChange={(val) => {
+                setProductId(val);
+                const p = products.find((p) => p.id === Number(val));
                 if (p) setUnitCost(p.purchasePrice);
               }}
-              className="p-3 rounded-lg bg-gray-600"
-            >
-              <option value="">Seleccionar producto</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>{p.name} — stock: {p.stock}</option>
-              ))}
-            </select>
-
-            <input
-              type="number"
-              placeholder="Cantidad"
-              value={quantity}
-              min={1}
-              onChange={(e) => setQuantity(e.target.value)}
-              className="p-3 rounded-lg bg-gray-600"
+              placeholder="Seleccionar producto"
             />
-
-            <input
-              type="number"
-              placeholder="Precio de costo"
-              value={unitCost}
-              min={0}
-              step="0.01"
-              onChange={(e) => setUnitCost(e.target.value)}
-              className="p-3 rounded-lg bg-gray-600"
-            />
-
-            <button
-              onClick={addItem}
-              className="bg-blue-600 hover:bg-blue-700 rounded-lg font-bold"
-            >
+            <input type="number" placeholder="Cantidad" value={quantity} min={1}
+              onChange={(e) => setQuantity(e.target.value)} className="p-3 rounded-lg bg-gray-600" />
+            <input type="number" placeholder="Precio de costo" value={unitCost} min={0} step="0.01"
+              onChange={(e) => setUnitCost(e.target.value)} className="p-3 rounded-lg bg-gray-600" />
+            <button onClick={addItem} className="bg-blue-600 hover:bg-blue-700 rounded-lg font-bold">
               Agregar
             </button>
           </div>
-
           {selectedProduct && (
             <div className="flex items-center gap-3 text-sm">
               <span className="text-gray-400">
@@ -362,19 +386,15 @@ export default function PurchasesPage() {
                 <span className="text-white">{formatARS(selectedProduct.purchasePrice)}</span>
               </span>
               <label className="flex items-center gap-2 cursor-pointer ml-auto">
-                <input
-                  type="checkbox"
-                  checked={updatePrice}
+                <input type="checkbox" checked={updatePrice}
                   onChange={(e) => setUpdatePrice(e.target.checked)}
-                  className="w-4 h-4 accent-blue-500"
-                />
+                  className="w-4 h-4 accent-blue-500" />
                 <span className="text-gray-300">Actualizar precio de compra y recalcular venta</span>
               </label>
             </div>
           )}
         </div>
 
-        {/* Tabla ítems */}
         <div className="bg-gray-900 rounded-xl overflow-hidden mb-4">
           <table className="w-full text-sm">
             <thead className="bg-gray-700">
@@ -402,15 +422,11 @@ export default function PurchasesPage() {
                     <td className="p-3 text-gray-400">{formatARS(item.unitCost)}</td>
                     <td className="p-3 font-bold">{formatARS(item.subtotal)}</td>
                     <td className="p-3">
-                      {item.updatePrice
-                        ? <span className="text-green-400">Sí</span>
-                        : <span className="text-gray-500">No</span>}
+                      {item.updatePrice ? <span className="text-green-400">Sí</span> : <span className="text-gray-500">No</span>}
                     </td>
                     <td className="p-3 text-center">
-                      <button
-                        onClick={() => removeItem(item.productId)}
-                        className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded-lg text-xs"
-                      >
+                      <button onClick={() => removeItem(item.productId)}
+                        className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded-lg text-xs">
                         Quitar
                       </button>
                     </td>
@@ -421,7 +437,6 @@ export default function PurchasesPage() {
           </table>
         </div>
 
-        {/* Total y pago */}
         {items.length > 0 && (
           <div className="grid md:grid-cols-2 gap-4 mb-4">
             <div className="bg-gray-700 p-4 rounded-xl">
@@ -432,20 +447,11 @@ export default function PurchasesPage() {
               <label className="block text-sm text-gray-400 mb-1">
                 Monto pagado (dejá en 0 si quedó todo en deuda)
               </label>
-              <input
-                type="number"
-                placeholder="0"
-                value={paidAmount}
-                min={0}
-                max={total}
-                step="0.01"
-                onChange={(e) => setPaidAmount(e.target.value)}
-                className="w-full p-3 rounded-lg bg-gray-700"
-              />
+              <input type="number" placeholder="0" value={paidAmount} min={0} max={total} step="0.01"
+                onChange={(e) => setPaidAmount(e.target.value)} className="w-full p-3 rounded-lg bg-gray-700" />
               {paidAmount && Number(paidAmount) < total && (
                 <p className="text-sm text-yellow-400 mt-1">
-                  Quedará pendiente con la distribuidora:{' '}
-                  {formatARS(total - Number(paidAmount))}
+                  Quedará pendiente con la distribuidora: {formatARS(total - Number(paidAmount))}
                 </p>
               )}
             </div>
@@ -454,20 +460,12 @@ export default function PurchasesPage() {
 
         <div className="mb-4">
           <label className="block text-sm text-gray-400 mb-1">Notas (opcional)</label>
-          <input
-            type="text"
-            placeholder="Ej: Factura B N°0001-00012345"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            className="w-full p-3 rounded-lg bg-gray-700"
-          />
+          <input type="text" placeholder="Ej: Factura B N°0001-00012345" value={notes}
+            onChange={(e) => setNotes(e.target.value)} className="w-full p-3 rounded-lg bg-gray-700" />
         </div>
 
-        <button
-          onClick={createPurchase}
-          disabled={loading}
-          className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-bold"
-        >
+        <button onClick={createPurchase} disabled={loading}
+          className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-bold">
           {loading ? 'Registrando...' : 'Registrar Compra'}
         </button>
       </div>
@@ -501,20 +499,33 @@ export default function PurchasesPage() {
                     <p className="text-gray-400">
                       Pagado: <span className="text-green-400">{formatARS(purchase.paidAmount)}</span>
                     </p>
-                    {Number(purchase.pendingAmount) > 0 && (
+                    {Number(purchase.pendingAmount) > 0 ? (
                       <p className="text-red-400 font-bold">
-                        Pendiente con distribuidora: {formatARS(purchase.pendingAmount)}
+                        Pendiente: {formatARS(purchase.pendingAmount)}
                       </p>
+                    ) : (
+                      <p className="text-green-400 font-bold">Pagado ✓</p>
                     )}
                   </div>
                 </div>
 
-                <button
-                  onClick={() => setExpandedId(expandedId === purchase.id ? null : purchase.id)}
-                  className="mt-3 bg-gray-700 hover:bg-gray-600 px-4 py-1.5 rounded-lg text-sm"
-                >
-                  {expandedId === purchase.id ? 'Ocultar detalle' : 'Ver detalle'}
-                </button>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => setExpandedId(expandedId === purchase.id ? null : purchase.id)}
+                    className="bg-gray-700 hover:bg-gray-600 px-4 py-1.5 rounded-lg text-sm"
+                  >
+                    {expandedId === purchase.id ? 'Ocultar detalle' : 'Ver detalle'}
+                  </button>
+
+                  {Number(purchase.pendingAmount) > 0 && (
+                    <button
+                      onClick={() => openPaymentModal(purchase)}
+                      className="bg-green-700 hover:bg-green-600 px-4 py-1.5 rounded-lg text-sm font-bold"
+                    >
+                      💳 Registrar pago
+                    </button>
+                  )}
+                </div>
 
                 {expandedId === purchase.id && (
                   <div className="mt-4 bg-gray-700 rounded-xl p-4">
@@ -555,96 +566,124 @@ export default function PurchasesPage() {
       {/* Modal nueva distribuidora */}
       {showSupplierModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <form
-            onSubmit={saveSupplier}
-            className="bg-gray-800 p-8 rounded-2xl w-full max-w-md"
-          >
+          <form onSubmit={saveSupplier} className="bg-gray-800 p-8 rounded-2xl w-full max-w-md">
             <h2 className="text-2xl font-bold mb-6">Nueva Distribuidora</h2>
-
+            <label className="block text-sm text-gray-400 mb-1">Nombre de fantasía *</label>
+            <input type="text" name="name" placeholder="Ej: Distribuidora Paola"
+              value={supplierForm.name} onChange={handleSupplierChange}
+              className="w-full p-3 rounded-lg bg-gray-700 mb-4" />
+            <label className="block text-sm text-gray-400 mb-1">Dirección *</label>
+            <input type="text" name="address" placeholder="Ej: Av. Colón 1234"
+              value={supplierForm.address} onChange={handleSupplierChange}
+              className="w-full p-3 rounded-lg bg-gray-700 mb-4" />
             <label className="block text-sm text-gray-400 mb-1">
-              Nombre de fantasía *
+              DNI / CUIT / CUIL <span className="text-gray-600">(opcional)</span>
             </label>
-            <input
-              type="text"
-              name="name"
-              placeholder="Ej: Distribuidora Paola"
-              value={supplierForm.name}
-              onChange={handleSupplierChange}
-              className="w-full p-3 rounded-lg bg-gray-700 mb-4"
-            />
-
-            <label className="block text-sm text-gray-400 mb-1">
-              Dirección *
-            </label>
-            <input
-              type="text"
-              name="address"
-              placeholder="Ej: Av. Colón 1234"
-              value={supplierForm.address}
-              onChange={handleSupplierChange}
-              className="w-full p-3 rounded-lg bg-gray-700 mb-4"
-            />
-
-            <label className="block text-sm text-gray-400 mb-1">
-              DNI / CUIT / CUIL{' '}
-              <span className="text-gray-600">(opcional)</span>
-            </label>
-            <input
-              type="text"
-              name="cuit"
-              placeholder="Ej: 20-12345678-6"
-              value={supplierForm.cuit}
-              onChange={handleSupplierChange}
-              className="w-full p-3 rounded-lg bg-gray-700 mb-1"
-            />
+            <input type="text" name="cuit" placeholder="Ej: 20-12345678-6"
+              value={supplierForm.cuit} onChange={handleSupplierChange}
+              className="w-full p-3 rounded-lg bg-gray-700 mb-1" />
             <p className="text-xs text-gray-500 mb-4">
               Si ingresás un CUIT de 11 dígitos se validará el dígito verificador
             </p>
-
             <label className="block text-sm text-gray-400 mb-1">
               Teléfono <span className="text-gray-600">(opcional)</span>
             </label>
-            <input
-              type="text"
-              name="phone"
-              placeholder="Ej: 3511234567"
-              value={supplierForm.phone}
-              onChange={handleSupplierChange}
-              className="w-full p-3 rounded-lg bg-gray-700 mb-4"
-            />
-
+            <input type="text" name="phone" placeholder="Ej: 3511234567"
+              value={supplierForm.phone} onChange={handleSupplierChange}
+              className="w-full p-3 rounded-lg bg-gray-700 mb-4" />
             <label className="block text-sm text-gray-400 mb-1">
               Notas <span className="text-gray-600">(opcional)</span>
             </label>
-            <input
-              type="text"
-              name="notes"
-              placeholder="Ej: Entrega los martes"
-              value={supplierForm.notes}
-              onChange={handleSupplierChange}
-              className="w-full p-3 rounded-lg bg-gray-700 mb-6"
-            />
-
+            <input type="text" name="notes" placeholder="Ej: Entrega los martes"
+              value={supplierForm.notes} onChange={handleSupplierChange}
+              className="w-full p-3 rounded-lg bg-gray-700 mb-6" />
             {supplierError && (
               <div className="mb-4 p-3 bg-red-900/50 border border-red-500 rounded-lg text-red-300 text-sm">
                 {supplierError}
               </div>
             )}
-
             <div className="flex gap-4">
-              <button
-                type="submit"
-                disabled={savingSupplier}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed p-3 rounded-lg font-bold"
-              >
+              <button type="submit" disabled={savingSupplier}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed p-3 rounded-lg font-bold">
                 {savingSupplier ? 'Guardando...' : 'Guardar'}
               </button>
+              <button type="button" onClick={() => setShowSupplierModal(false)} disabled={savingSupplier}
+                className="flex-1 bg-gray-600 hover:bg-gray-500 disabled:cursor-not-allowed p-3 rounded-lg">
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal pago a distribuidora */}
+      {paymentPurchase && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <form onSubmit={savePayment} className="bg-gray-800 p-8 rounded-2xl w-full max-w-md">
+            <h2 className="text-2xl font-bold mb-2">Registrar pago</h2>
+            <p className="text-gray-400 text-sm mb-6">
+              Compra #{paymentPurchase.id} — {paymentPurchase.supplier?.name}
+            </p>
+
+            <div className="bg-gray-700 rounded-xl p-4 mb-6 text-sm space-y-1">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Total de la compra:</span>
+                <span className="text-white font-bold">{formatARS(paymentPurchase.total)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Ya pagado:</span>
+                <span className="text-green-400">{formatARS(paymentPurchase.paidAmount)}</span>
+              </div>
+              <div className="flex justify-between border-t border-gray-600 pt-1 mt-1">
+                <span className="text-gray-400 font-bold">Pendiente:</span>
+                <span className="text-red-400 font-bold">{formatARS(paymentPurchase.pendingAmount)}</span>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center mb-1">
+              <label className="text-sm text-gray-400">Monto a pagar *</label>
               <button
                 type="button"
-                onClick={() => setShowSupplierModal(false)}
-                disabled={savingSupplier}
-                className="flex-1 bg-gray-600 hover:bg-gray-500 disabled:cursor-not-allowed p-3 rounded-lg"
+                onClick={() => setPaymentAmount(String(paymentPurchase.pendingAmount))}
+                className="text-xs text-blue-400 hover:text-blue-300 font-bold"
               >
+                Pagar total
+              </button>
+            </div>
+            <input
+              type="number"
+              placeholder={`Máximo ${formatARS(paymentPurchase.pendingAmount)}`}
+              value={paymentAmount}
+              min={0.01}
+              max={Number(paymentPurchase.pendingAmount)}
+              step="0.01"
+              onChange={(e) => { setPaymentAmount(e.target.value); setPaymentError(''); }}
+              className="w-full p-3 rounded-lg bg-gray-700 mb-2"
+              autoFocus
+            />
+
+            {paymentAmount && Number(paymentAmount) > 0 && Number(paymentAmount) <= Number(paymentPurchase.pendingAmount) && (
+              <p className="text-xs text-gray-400 mb-4">
+                Quedará pendiente:{' '}
+                <span className={Number(paymentPurchase.pendingAmount) - Number(paymentAmount) === 0 ? 'text-green-400 font-bold' : 'text-yellow-400 font-bold'}>
+                  {formatARS(Number(paymentPurchase.pendingAmount) - Number(paymentAmount))}
+                </span>
+              </p>
+            )}
+
+            {paymentError && (
+              <div className="mb-4 p-3 bg-red-900/50 border border-red-500 rounded-lg text-red-300 text-sm">
+                {paymentError}
+              </div>
+            )}
+
+            <div className="flex gap-4">
+              <button type="submit" disabled={savingPayment}
+                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed p-3 rounded-lg font-bold">
+                {savingPayment ? 'Guardando...' : 'Confirmar pago'}
+              </button>
+              <button type="button" onClick={closePaymentModal} disabled={savingPayment}
+                className="flex-1 bg-gray-600 hover:bg-gray-500 disabled:cursor-not-allowed p-3 rounded-lg">
                 Cancelar
               </button>
             </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../api/axios';
+import ProductSearchSelect from '../components/ProductSearchSelect';
 
 type Customer = {
   id: number;
@@ -215,20 +216,18 @@ export default function OrdersPage() {
           </select>
 
           {/* Producto */}
-          <select
-            value={productId}
-            onChange={(e) => handleProductChange(e.target.value)}
-            className="p-3 rounded-lg bg-gray-700"
-          >
-            <option value="">Seleccionar Producto</option>
-            {products
+          <ProductSearchSelect
+            options={products
               .filter((p) => p.stock > 0)
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} — stock: {p.stock}
-                </option>
-              ))}
-          </select>
+              .map((p) => ({
+                id: p.id,
+                label: p.name,
+                sublabel: `stock: ${p.stock}`,
+              }))}
+            value={productId}
+            onChange={(val) => handleProductChange(val)}
+            placeholder="Seleccionar Producto"
+          />
 
           {/* Presentación */}
           <select

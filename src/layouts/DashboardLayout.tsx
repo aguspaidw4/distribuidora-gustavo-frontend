@@ -109,7 +109,7 @@ export default function DashboardLayout({
     <div className="min-h-screen flex bg-gray-900 text-white">
 
       {/* ── SIDEBAR DESKTOP (visible desde md) ── */}
-      <aside className="hidden md:flex w-64 bg-gray-800 flex-col flex-shrink-0">
+      <aside className="hidden md:flex w-64 bg-gray-800 flex-col flex-shrink-0 h-screen sticky top-0">
         {sidebarContent}
       </aside>
 
