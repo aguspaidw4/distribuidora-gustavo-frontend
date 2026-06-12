@@ -12,56 +12,60 @@ const TIPO_LABELS: Record<TipoFiscal, string> = {
   MONOTRIBUTISTA: 'Monotributista',
   RESPONSABLE_INSCRIPTO: 'Responsable Inscripto',
 };
-
 const TIPO_DESC: Record<TipoFiscal, string> = {
   CONSUMIDOR_FINAL: 'Persona física que compra para uso personal',
   MONOTRIBUTISTA: 'Trabajador independiente inscripto en monotributo',
   RESPONSABLE_INSCRIPTO: 'Empresa o profesional inscripto en IVA',
 };
 
-// ── Validaciones ──
-
-function normalizeDni(value: string): string {
-  return value.replace(/[.\s]/g, '');
-}
-
-function normalizeCuit(value: string): string {
-  return value.replace(/[-\s]/g, '');
-}
+function normalizeDni(v: string) { return v.replace(/[.\s]/g, ''); }
+function normalizeCuit(v: string) { return v.replace(/[-\s]/g, ''); }
 
 function validateDni(dni: string): string | null {
-  const normalized = normalizeDni(dni);
-  if (!/^\d+$/.test(normalized)) return 'El DNI debe contener solo números';
-  if (normalized.length < 7 || normalized.length > 8) return 'El DNI debe tener 7 u 8 dígitos';
+  const n = normalizeDni(dni);
+  if (!/^\d+$/.test(n)) return 'El DNI debe contener solo números';
+  if (n.length < 7 || n.length > 8) return 'El DNI debe tener 7 u 8 dígitos';
   return null;
 }
-
 function validateCuit(cuit: string): string | null {
-  const normalized = normalizeCuit(cuit);
-  if (!/^\d+$/.test(normalized)) return 'El CUIT debe contener solo números';
-  if (normalized.length !== 11) return 'El CUIT debe tener exactamente 11 dígitos';
-
-  // Algoritmo dígito verificador AFIP
-  const weights = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
-  const digits = normalized.split('').map(Number);
-  const sum = weights.reduce((acc, w, i) => acc + w * digits[i], 0);
-  const remainder = sum % 11;
-  const verifier = remainder === 0 ? 0 : remainder === 1 ? 9 : 11 - remainder;
-  if (digits[10] !== verifier) return 'El dígito verificador del CUIT es incorrecto';
-
+  const n = normalizeCuit(cuit);
+  if (!/^\d+$/.test(n)) return 'El CUIT debe contener solo números';
+  if (n.length !== 11) return 'El CUIT debe tener exactamente 11 dígitos';
+  const w = [5,4,3,2,7,6,5,4,3,2];
+  const d = n.split('').map(Number);
+  const s = w.reduce((a,w,i) => a+w*d[i], 0);
+  const r = s % 11;
+  const v = r === 0 ? 0 : r === 1 ? 9 : 11 - r;
+  if (d[10] !== v) return 'El dígito verificador del CUIT es incorrecto';
   return null;
 }
-
 function validateTelefono(tel: string): string | null {
-  if (!/^\d+$/.test(tel)) return 'El teléfono debe contener solo números (sin espacios, guiones ni +)';
+  if (!/^\d+$/.test(tel)) return 'El teléfono debe contener solo números';
   if (tel.length < 8 || tel.length > 15) return 'El teléfono debe tener entre 8 y 15 dígitos';
   return null;
 }
-
 function validateDomicilio(dom: string): string | null {
   if (!dom.trim()) return 'El domicilio es obligatorio';
   if (!/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/.test(dom)) return 'El domicilio debe contener al menos una letra';
   return null;
+}
+
+// Fondo animado con partículas SVG
+function Background() {
+  return (
+    <div className="fixed inset-0 bg-gradient-to-br from-gray-950 via-blue-950 to-gray-900 overflow-hidden">
+      <svg className="absolute inset-0 w-full h-full opacity-10" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
+            <path d="M 60 0 L 0 0 0 60" fill="none" stroke="#3b82f6" strokeWidth="0.5"/>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#grid)" />
+      </svg>
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl" />
+      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-indigo-600/10 rounded-full blur-3xl" />
+    </div>
+  );
 }
 
 export default function LoginPage() {
@@ -73,28 +77,20 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [checkingUsers, setCheckingUsers] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
 
-  // Login
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-
-  // Primer admin
   const [adminName, setAdminName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
-
-  // Tipo fiscal
   const [tipoFiscal, setTipoFiscal] = useState<TipoFiscal | null>(null);
-
-  // Datos fiscales
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
   const [dni, setDni] = useState('');
   const [cuit, setCuit] = useState('');
   const [domicilio, setDomicilio] = useState('');
   const [razonSocial, setRazonSocial] = useState('');
-
-  // Cuenta
   const [email, setEmail] = useState('');
   const [telefono, setTelefono] = useState('');
   const [password, setPassword] = useState('');
@@ -105,7 +101,7 @@ export default function LoginPage() {
       try {
         const res = await api.get('/users/has-users');
         if (!res.data.hasUsers) setMode('register-first');
-      } catch { }
+      } catch {}
       finally { setCheckingUsers(false); }
     }
     checkUsers();
@@ -120,7 +116,6 @@ export default function LoginPage() {
     setError('');
   }
 
-  // ── LOGIN ──
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError('');
@@ -130,12 +125,10 @@ export default function LoginPage() {
     try {
       await login(loginEmail, loginPassword);
       navigate('/');
-    } catch {
-      setError('Email o contraseña incorrectos');
-    } finally { setLoading(false); }
+    } catch { setError('Email o contraseña incorrectos'); }
+    finally { setLoading(false); }
   }
 
-  // ── PRIMER ADMIN ──
   async function handleRegisterFirst(e: React.FormEvent) {
     e.preventDefault();
     setError('');
@@ -153,76 +146,50 @@ export default function LoginPage() {
     } finally { setLoading(false); }
   }
 
-  // ── PASO 1: tipo fiscal ──
   function handleTipoNext() {
     if (!tipoFiscal) { setError('Seleccioná tu tipo de contribuyente'); return; }
-    setError('');
-    setStep('datos');
+    setError(''); setStep('datos');
   }
 
-  // ── PASO 2: datos fiscales ──
   function handleDatosNext() {
     setError('');
-
     if (tipoFiscal === 'CONSUMIDOR_FINAL') {
       if (!nombre.trim()) { setError('Ingresá tu nombre'); return; }
       if (!apellido.trim()) { setError('Ingresá tu apellido'); return; }
-      const dniErr = validateDni(dni);
-      if (dniErr) { setError(dniErr); return; }
-      const domErr = validateDomicilio(domicilio);
-      if (domErr) { setError(domErr); return; }
+      const e = validateDni(dni); if (e) { setError(e); return; }
+      const d = validateDomicilio(domicilio); if (d) { setError(d); return; }
     }
-
     if (tipoFiscal === 'MONOTRIBUTISTA') {
       if (!nombre.trim()) { setError('Ingresá tu nombre'); return; }
       if (!apellido.trim()) { setError('Ingresá tu apellido'); return; }
-      const dniErr = validateDni(dni);
-      if (dniErr) { setError(dniErr); return; }
-      const cuitErr = validateCuit(cuit);
-      if (cuitErr) { setError(cuitErr); return; }
-      const domErr = validateDomicilio(domicilio);
-      if (domErr) { setError(domErr); return; }
+      const e = validateDni(dni); if (e) { setError(e); return; }
+      const c = validateCuit(cuit); if (c) { setError(c); return; }
+      const d = validateDomicilio(domicilio); if (d) { setError(d); return; }
     }
-
     if (tipoFiscal === 'RESPONSABLE_INSCRIPTO') {
       if (!razonSocial.trim()) { setError('Ingresá la razón social'); return; }
-      const cuitErr = validateCuit(cuit);
-      if (cuitErr) { setError(cuitErr); return; }
-      const domErr = validateDomicilio(domicilio);
-      if (domErr) { setError(domErr); return; }
+      const c = validateCuit(cuit); if (c) { setError(c); return; }
+      const d = validateDomicilio(domicilio); if (d) { setError(d); return; }
     }
-
     setStep('cuenta');
   }
 
-  // ── PASO 3: cuenta ──
   async function handleCuentaSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-
     if (!email.trim()) { setError('Ingresá tu email'); return; }
-
-    const telErr = validateTelefono(telefono);
-    if (telErr) { setError(telErr); return; }
-
+    const t = validateTelefono(telefono); if (t) { setError(t); return; }
     if (password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return; }
     if (password !== confirmPassword) { setError('Las contraseñas no coinciden'); return; }
-
     setLoading(true);
     try {
       const displayName = tipoFiscal === 'RESPONSABLE_INSCRIPTO' ? razonSocial : nombre;
-
       await api.post('/users/register', {
-        email,
-        name: displayName,
-        password,
-        tipoFiscal,
+        email, name: displayName, password, tipoFiscal,
         apellido: tipoFiscal !== 'RESPONSABLE_INSCRIPTO' ? apellido : undefined,
         dni: tipoFiscal === 'CONSUMIDOR_FINAL' ? normalizeDni(dni) : undefined,
         cuit: tipoFiscal !== 'CONSUMIDOR_FINAL' ? normalizeCuit(cuit) : undefined,
-        domicilio,
-        razonSocial: tipoFiscal === 'RESPONSABLE_INSCRIPTO' ? razonSocial : undefined,
-        telefono,
+        domicilio, razonSocial: tipoFiscal === 'RESPONSABLE_INSCRIPTO' ? razonSocial : undefined, telefono,
       });
       await login(email, password);
       navigate('/');
@@ -235,341 +202,358 @@ export default function LoginPage() {
 
   if (checkingUsers) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <p className="text-gray-400">Cargando...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-950">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-400 text-sm">Cargando...</p>
+        </div>
       </div>
     );
   }
 
-  // ── RENDER LOGIN ──
+  const cardClass = "relative z-10 w-full max-w-md bg-gray-900/80 backdrop-blur-xl border border-gray-700/50 rounded-2xl shadow-2xl";
+
+  // ── LOGIN ──
   if (mode === 'login') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <div className="bg-gray-800 p-8 rounded-2xl w-full max-w-md shadow-xl">
-          <h1 className="text-3xl font-bold mb-1">Distribuidora</h1>
-          <p className="text-gray-400 mb-8 text-sm">Gustavo — Sistema de gestión</p>
-          <form onSubmit={handleLogin}>
-            <label className="block text-sm text-gray-400 mb-1">Email</label>
-            <input type="email" placeholder="ejemplo@correo.com"
-              value={loginEmail} onChange={(e) => { setLoginEmail(e.target.value); setError(''); }}
-              className="w-full p-3 rounded-lg bg-gray-700 mb-4" disabled={loading}
-            />
-            <label className="block text-sm text-gray-400 mb-1">Contraseña</label>
-            <input type="password" placeholder="••••••••"
-              value={loginPassword} onChange={(e) => { setLoginPassword(e.target.value); setError(''); }}
-              className="w-full p-3 rounded-lg bg-gray-700 mb-6" disabled={loading}
-            />
-            {error && (
-              <div className="mb-4 p-3 bg-red-900/50 border border-red-500 rounded-lg text-red-300 text-sm">{error}</div>
-            )}
-            <button type="submit" disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed p-3 rounded-lg font-bold"
-            >
-              {loading ? 'Ingresando...' : 'Ingresar'}
-            </button>
-          </form>
-          <div className="mt-6 text-center text-sm">
-            <button onClick={() => { resetRegister(); setMode('register'); }}
-              className="text-blue-400 hover:text-blue-300"
-            >
-              ¿No tenés cuenta? Registrate
-            </button>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Background />
+        <div className={cardClass}>
+          {/* Header con logo */}
+          <div className="px-8 pt-8 pb-6 border-b border-gray-700/50">
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-xl">🏪</div>
+              <div>
+                <h1 className="text-xl font-bold text-white">Distribuidora Gustavo</h1>
+                <p className="text-xs text-gray-500">Sistema de gestión comercial</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-8">
+            <h2 className="text-2xl font-bold text-white mb-1">Bienvenido</h2>
+            <p className="text-gray-400 text-sm mb-8">Ingresá tus credenciales para continuar</p>
+
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1.5">Email</label>
+                <input
+                  type="email"
+                  placeholder="ejemplo@correo.com"
+                  value={loginEmail}
+                  onChange={(e) => { setLoginEmail(e.target.value); setError(''); }}
+                  className="w-full px-4 py-3 bg-gray-800/80 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                  disabled={loading}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-400 mb-1.5">Contraseña</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    value={loginPassword}
+                    onChange={(e) => { setLoginPassword(e.target.value); setError(''); }}
+                    className="w-full px-4 py-3 bg-gray-800/80 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors pr-12"
+                    disabled={loading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 text-sm"
+                  >
+                    {showPassword ? '🙈' : '👁'}
+                  </button>
+                </div>
+              </div>
+
+              {error && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm flex items-center gap-2">
+                  <span>⚠</span> {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-xl font-bold text-white transition-colors mt-2"
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Ingresando...
+                  </span>
+                ) : 'Ingresar →'}
+              </button>
+            </form>
+
+            <div className="mt-6 pt-6 border-t border-gray-700/50 text-center">
+              <button
+                onClick={() => { resetRegister(); setMode('register'); }}
+                className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                ¿No tenés cuenta? <span className="font-bold">Registrate</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  // ── RENDER PRIMER ADMIN ──
+  // ── PRIMER ADMIN ──
   if (mode === 'register-first') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <div className="bg-gray-800 p-8 rounded-2xl w-full max-w-md shadow-xl">
-          <h1 className="text-3xl font-bold mb-1">Distribuidora</h1>
-          <p className="text-gray-400 mb-6 text-sm">Creá el primer administrador</p>
-          <div className="mb-6 p-3 bg-blue-900/40 border border-blue-700 rounded-lg text-sm text-blue-300">
-            No hay usuarios registrados. Creá el primer administrador del sistema.
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Background />
+        <div className={cardClass}>
+          <div className="px-8 pt-8 pb-6 border-b border-gray-700/50">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-xl">🏪</div>
+              <div>
+                <h1 className="text-xl font-bold text-white">Distribuidora Gustavo</h1>
+                <p className="text-xs text-gray-500">Configuración inicial</p>
+              </div>
+            </div>
           </div>
-          <form onSubmit={handleRegisterFirst}>
-            <label className="block text-sm text-gray-400 mb-1">Nombre</label>
-            <input type="text" placeholder="Ej: Gustavo"
-              value={adminName} onChange={(e) => setAdminName(e.target.value)}
-              className="w-full p-3 rounded-lg bg-gray-700 mb-4" disabled={loading}
-            />
-            <label className="block text-sm text-gray-400 mb-1">Email</label>
-            <input type="email" placeholder="ejemplo@correo.com"
-              value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)}
-              className="w-full p-3 rounded-lg bg-gray-700 mb-4" disabled={loading}
-            />
-            <label className="block text-sm text-gray-400 mb-1">Contraseña</label>
-            <input type="password" placeholder="••••••••"
-              value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)}
-              className="w-full p-3 rounded-lg bg-gray-700 mb-6" disabled={loading}
-            />
-            {error && (
-              <div className="mb-4 p-3 bg-red-900/50 border border-red-500 rounded-lg text-red-300 text-sm">{error}</div>
-            )}
-            <button type="submit" disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed p-3 rounded-lg font-bold"
-            >
-              {loading ? 'Creando...' : 'Crear administrador'}
-            </button>
-          </form>
+
+          <div className="p-8">
+            <h2 className="text-2xl font-bold text-white mb-1">Crear administrador</h2>
+            <p className="text-gray-400 text-sm mb-2">Primera configuración del sistema</p>
+
+            <div className="mb-6 p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-sm text-blue-300 flex items-start gap-2">
+              <span className="mt-0.5">ℹ</span>
+              <span>No hay usuarios registrados. Creá el primer administrador del sistema.</span>
+            </div>
+
+            <form onSubmit={handleRegisterFirst} className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1.5">Nombre</label>
+                <input type="text" placeholder="Ej: Gustavo"
+                  value={adminName} onChange={(e) => setAdminName(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-800/80 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                  disabled={loading} />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1.5">Email</label>
+                <input type="email" placeholder="ejemplo@correo.com"
+                  value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-800/80 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                  disabled={loading} />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1.5">Contraseña</label>
+                <input type="password" placeholder="Mínimo 6 caracteres"
+                  value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-800/80 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                  disabled={loading} />
+              </div>
+
+              {error && (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm flex items-center gap-2">
+                  <span>⚠</span> {error}
+                </div>
+              )}
+
+              <button type="submit" disabled={loading}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-xl font-bold text-white transition-colors">
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Creando...
+                  </span>
+                ) : 'Crear administrador →'}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     );
   }
 
-  // ── RENDER REGISTRO CLIENTE ──
+  // ── REGISTRO CLIENTE ──
   const stepNumber = step === 'tipo' ? 1 : step === 'datos' ? 2 : 3;
+  const stepLabels = ['Tipo fiscal', 'Datos', 'Cuenta'];
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900 py-8">
-      <div className="bg-gray-800 p-8 rounded-2xl w-full max-w-md shadow-xl">
-
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold">Crear cuenta</h1>
-            <p className="text-gray-400 text-sm mt-0.5">Paso {stepNumber} de 3</p>
-          </div>
-          <button onClick={() => { setMode('login'); resetRegister(); }}
-            className="text-gray-500 hover:text-gray-300 text-sm"
-          >
-            ← Volver al login
-          </button>
-        </div>
-
-        {/* Progreso */}
-        <div className="flex gap-1 mb-8">
-          {[1, 2, 3].map((s) => (
-            <div key={s} className={`flex-1 h-1 rounded-full ${s <= stepNumber ? 'bg-blue-500' : 'bg-gray-600'}`} />
-          ))}
-        </div>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-900/50 border border-red-500 rounded-lg text-red-300 text-sm">{error}</div>
-        )}
-
-        {/* PASO 1 — Tipo fiscal */}
-        {step === 'tipo' && (
-          <div>
-            <p className="text-gray-300 font-bold mb-4">¿Cuál es tu condición fiscal?</p>
-            <div className="space-y-3 mb-8">
-              {(Object.keys(TIPO_LABELS) as TipoFiscal[]).map((tipo) => (
-                <button key={tipo} type="button"
-                  onClick={() => { setTipoFiscal(tipo); setError(''); }}
-                  className={`w-full text-left p-4 rounded-xl border-2 transition-colors ${
-                    tipoFiscal === tipo
-                      ? 'border-blue-500 bg-blue-900/30'
-                      : 'border-gray-600 hover:border-gray-500 bg-gray-700'
-                  }`}
-                >
-                  <p className="font-bold text-white">{TIPO_LABELS[tipo]}</p>
-                  <p className="text-sm text-gray-400 mt-0.5">{TIPO_DESC[tipo]}</p>
-                </button>
-              ))}
+    <div className="min-h-screen flex items-center justify-center p-4 py-8">
+      <Background />
+      <div className={cardClass}>
+        <div className="px-8 pt-8 pb-6 border-b border-gray-700/50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-xl">🏪</div>
+              <div>
+                <h1 className="text-xl font-bold text-white">Crear cuenta</h1>
+                <p className="text-xs text-gray-500">Paso {stepNumber} de 3 — {stepLabels[stepNumber - 1]}</p>
+              </div>
             </div>
-            <button onClick={handleTipoNext}
-              className="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded-lg font-bold"
-            >
-              Continuar →
+            <button onClick={() => { setMode('login'); resetRegister(); }}
+              className="text-xs text-gray-500 hover:text-gray-300 transition-colors border border-gray-700 px-3 py-1.5 rounded-lg">
+              ← Login
             </button>
           </div>
-        )}
 
-        {/* PASO 2 — Datos fiscales */}
-        {step === 'datos' && tipoFiscal && (
-          <div>
-            <p className="text-gray-300 font-bold mb-4">Datos de {TIPO_LABELS[tipoFiscal]}</p>
+          {/* Barra de progreso */}
+          <div className="flex gap-1.5 mt-5">
+            {[1, 2, 3].map((s) => (
+              <div key={s} className={`flex-1 h-1 rounded-full transition-all ${s <= stepNumber ? 'bg-blue-500' : 'bg-gray-700'}`} />
+            ))}
+          </div>
+        </div>
 
-            {/* Consumidor Final */}
-            {tipoFiscal === 'CONSUMIDOR_FINAL' && (
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Nombre *</label>
-                  <input type="text" placeholder="Ej: María"
-                    value={nombre} onChange={(e) => { setNombre(e.target.value); setError(''); }}
-                    className="w-full p-3 rounded-lg bg-gray-700"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Apellido *</label>
-                  <input type="text" placeholder="Ej: González"
-                    value={apellido} onChange={(e) => { setApellido(e.target.value); setError(''); }}
-                    className="w-full p-3 rounded-lg bg-gray-700"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">DNI *</label>
-                  <input type="text" placeholder="Ej: 38123456"
-                    value={dni} onChange={(e) => { setDni(e.target.value); setError(''); }}
-                    className="w-full p-3 rounded-lg bg-gray-700"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">7 u 8 dígitos, sin puntos</p>
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Domicilio *</label>
-                  <input type="text" placeholder="Ej: Av. Colón 1234"
-                    value={domicilio} onChange={(e) => { setDomicilio(e.target.value); setError(''); }}
-                    className="w-full p-3 rounded-lg bg-gray-700"
-                  />
-                </div>
+        <div className="p-8">
+          {error && (
+            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm flex items-center gap-2">
+              <span>⚠</span> {error}
+            </div>
+          )}
+
+          {/* PASO 1 */}
+          {step === 'tipo' && (
+            <div>
+              <p className="text-gray-300 font-bold mb-4">¿Cuál es tu condición fiscal?</p>
+              <div className="space-y-3 mb-6">
+                {(Object.keys(TIPO_LABELS) as TipoFiscal[]).map((tipo) => (
+                  <button key={tipo} type="button"
+                    onClick={() => { setTipoFiscal(tipo); setError(''); }}
+                    className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                      tipoFiscal === tipo
+                        ? 'border-blue-500 bg-blue-500/10'
+                        : 'border-gray-700 hover:border-gray-600 bg-gray-800/50'
+                    }`}
+                  >
+                    <p className="font-bold text-white">{TIPO_LABELS[tipo]}</p>
+                    <p className="text-sm text-gray-400 mt-0.5">{TIPO_DESC[tipo]}</p>
+                  </button>
+                ))}
               </div>
-            )}
-
-            {/* Monotributista */}
-            {tipoFiscal === 'MONOTRIBUTISTA' && (
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Nombre *</label>
-                  <input type="text" placeholder="Ej: Carlos"
-                    value={nombre} onChange={(e) => { setNombre(e.target.value); setError(''); }}
-                    className="w-full p-3 rounded-lg bg-gray-700"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Apellido *</label>
-                  <input type="text" placeholder="Ej: Rodríguez"
-                    value={apellido} onChange={(e) => { setApellido(e.target.value); setError(''); }}
-                    className="w-full p-3 rounded-lg bg-gray-700"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">DNI *</label>
-                  <input type="text" placeholder="Ej: 38123456"
-                    value={dni} onChange={(e) => { setDni(e.target.value); setError(''); }}
-                    className="w-full p-3 rounded-lg bg-gray-700"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">7 u 8 dígitos, sin puntos</p>
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">CUIT *</label>
-                  <input type="text" placeholder="Ej: 20-38123456-7"
-                    value={cuit} onChange={(e) => { setCuit(e.target.value); setError(''); }}
-                    className="w-full p-3 rounded-lg bg-gray-700"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">11 dígitos, con o sin guiones</p>
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Domicilio fiscal *</label>
-                  <input type="text" placeholder="Ej: Av. Colón 1234"
-                    value={domicilio} onChange={(e) => { setDomicilio(e.target.value); setError(''); }}
-                    className="w-full p-3 rounded-lg bg-gray-700"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Responsable Inscripto */}
-            {tipoFiscal === 'RESPONSABLE_INSCRIPTO' && (
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Razón social *</label>
-                  <input type="text" placeholder="Ej: Kiosco Central S.R.L."
-                    value={razonSocial} onChange={(e) => { setRazonSocial(e.target.value); setError(''); }}
-                    className="w-full p-3 rounded-lg bg-gray-700"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">CUIT *</label>
-                  <input type="text" placeholder="Ej: 30-12345678-9"
-                    value={cuit} onChange={(e) => { setCuit(e.target.value); setError(''); }}
-                    className="w-full p-3 rounded-lg bg-gray-700"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">11 dígitos, con o sin guiones</p>
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Domicilio fiscal *</label>
-                  <input type="text" placeholder="Ej: Av. Colón 1234"
-                    value={domicilio} onChange={(e) => { setDomicilio(e.target.value); setError(''); }}
-                    className="w-full p-3 rounded-lg bg-gray-700"
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-3 mt-6">
-              <button type="button" onClick={() => { setStep('tipo'); setError(''); }}
-                className="flex-1 bg-gray-600 hover:bg-gray-500 p-3 rounded-lg"
-              >
-                ← Atrás
-              </button>
-              <button type="button" onClick={handleDatosNext}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 p-3 rounded-lg font-bold"
-              >
+              <button onClick={handleTipoNext} className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-white transition-colors">
                 Continuar →
               </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* PASO 3 — Cuenta */}
-        {step === 'cuenta' && (
-          <form onSubmit={handleCuentaSubmit}>
-            <p className="text-gray-300 font-bold mb-4">Datos de tu cuenta</p>
-
-            <div className="space-y-3 mb-6">
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Email *</label>
-                <input type="email" placeholder="ejemplo@correo.com"
-                  value={email} onChange={(e) => { setEmail(e.target.value); setError(''); }}
-                  className="w-full p-3 rounded-lg bg-gray-700" disabled={loading}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Teléfono *</label>
-                <input type="text" placeholder="Ej: 3511234567"
-                  value={telefono} onChange={(e) => { setTelefono(e.target.value); setError(''); }}
-                  className="w-full p-3 rounded-lg bg-gray-700" disabled={loading}
-                />
-                <p className="text-xs text-gray-500 mt-1">Solo números, sin espacios ni guiones</p>
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">
-                  Contraseña * (mínimo 6 caracteres)
-                </label>
-                <input type="password" placeholder="••••••••"
-                  value={password} onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                  className="w-full p-3 rounded-lg bg-gray-700" disabled={loading}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Confirmar contraseña *</label>
-                <input type="password" placeholder="••••••••"
-                  value={confirmPassword}
-                  onChange={(e) => { setConfirmPassword(e.target.value); setError(''); }}
-                  className={`w-full p-3 rounded-lg ${
-                    confirmPassword && confirmPassword !== password
-                      ? 'bg-red-900/30 border border-red-500'
-                      : 'bg-gray-700'
-                  }`}
-                  disabled={loading}
-                />
-                {confirmPassword && confirmPassword !== password && (
-                  <p className="text-red-400 text-xs mt-1">Las contraseñas no coinciden</p>
+          {/* PASO 2 */}
+          {step === 'datos' && tipoFiscal && (
+            <div>
+              <p className="text-gray-300 font-bold mb-4">Datos de {TIPO_LABELS[tipoFiscal]}</p>
+              <div className="space-y-3">
+                {tipoFiscal !== 'RESPONSABLE_INSCRIPTO' && (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm text-gray-400 mb-1">Nombre *</label>
+                        <input type="text" placeholder="Ej: María" value={nombre}
+                          onChange={(e) => { setNombre(e.target.value); setError(''); }}
+                          className="w-full px-3 py-2.5 bg-gray-800/80 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-400 mb-1">Apellido *</label>
+                        <input type="text" placeholder="Ej: González" value={apellido}
+                          onChange={(e) => { setApellido(e.target.value); setError(''); }}
+                          className="w-full px-3 py-2.5 bg-gray-800/80 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">DNI *</label>
+                      <input type="text" placeholder="Ej: 38123456" value={dni}
+                        onChange={(e) => { setDni(e.target.value); setError(''); }}
+                        className="w-full px-3 py-2.5 bg-gray-800/80 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm" />
+                    </div>
+                  </>
                 )}
+                {tipoFiscal === 'RESPONSABLE_INSCRIPTO' && (
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Razón social *</label>
+                    <input type="text" placeholder="Ej: Kiosco Central S.R.L." value={razonSocial}
+                      onChange={(e) => { setRazonSocial(e.target.value); setError(''); }}
+                      className="w-full px-3 py-2.5 bg-gray-800/80 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm" />
+                  </div>
+                )}
+                {tipoFiscal !== 'CONSUMIDOR_FINAL' && (
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">CUIT *</label>
+                    <input type="text" placeholder="Ej: 20-38123456-7" value={cuit}
+                      onChange={(e) => { setCuit(e.target.value); setError(''); }}
+                      className="w-full px-3 py-2.5 bg-gray-800/80 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm" />
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Domicilio fiscal *</label>
+                  <input type="text" placeholder="Ej: Av. Colón 1234" value={domicilio}
+                    onChange={(e) => { setDomicilio(e.target.value); setError(''); }}
+                    className="w-full px-3 py-2.5 bg-gray-800/80 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm" />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button type="button" onClick={() => { setStep('tipo'); setError(''); }}
+                  className="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl text-white transition-colors">← Atrás</button>
+                <button type="button" onClick={handleDatosNext}
+                  className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-white transition-colors">Continuar →</button>
               </div>
             </div>
+          )}
 
-            <div className="flex gap-3">
-              <button type="button" onClick={() => { setStep('datos'); setError(''); }}
-                disabled={loading}
-                className="flex-1 bg-gray-600 hover:bg-gray-500 disabled:cursor-not-allowed p-3 rounded-lg"
-              >
-                ← Atrás
-              </button>
-              <button type="submit" disabled={loading}
-                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed p-3 rounded-lg font-bold"
-              >
-                {loading ? 'Creando cuenta...' : 'Crear cuenta'}
-              </button>
-            </div>
-          </form>
-        )}
+          {/* PASO 3 */}
+          {step === 'cuenta' && (
+            <form onSubmit={handleCuentaSubmit}>
+              <p className="text-gray-300 font-bold mb-4">Datos de tu cuenta</p>
+              <div className="space-y-3 mb-6">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Email *</label>
+                  <input type="email" placeholder="ejemplo@correo.com" value={email}
+                    onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                    className="w-full px-3 py-2.5 bg-gray-800/80 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm"
+                    disabled={loading} />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Teléfono *</label>
+                  <input type="text" placeholder="Ej: 3511234567" value={telefono}
+                    onChange={(e) => { setTelefono(e.target.value); setError(''); }}
+                    className="w-full px-3 py-2.5 bg-gray-800/80 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm"
+                    disabled={loading} />
+                  <p className="text-xs text-gray-600 mt-1">Solo números, sin espacios</p>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Contraseña * (mín. 6 caracteres)</label>
+                  <input type="password" placeholder="••••••••" value={password}
+                    onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                    className="w-full px-3 py-2.5 bg-gray-800/80 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm"
+                    disabled={loading} />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Confirmar contraseña *</label>
+                  <input type="password" placeholder="••••••••" value={confirmPassword}
+                    onChange={(e) => { setConfirmPassword(e.target.value); setError(''); }}
+                    className={`w-full px-3 py-2.5 border rounded-xl text-white placeholder-gray-500 focus:outline-none text-sm ${
+                      confirmPassword && confirmPassword !== password
+                        ? 'bg-red-900/20 border-red-500/50 focus:border-red-500'
+                        : 'bg-gray-800/80 border-gray-700 focus:border-blue-500'
+                    }`}
+                    disabled={loading} />
+                  {confirmPassword && confirmPassword !== password && (
+                    <p className="text-red-400 text-xs mt-1">Las contraseñas no coinciden</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button type="button" onClick={() => { setStep('datos'); setError(''); }} disabled={loading}
+                  className="flex-1 py-3 bg-gray-700 hover:bg-gray-600 disabled:cursor-not-allowed rounded-xl text-white transition-colors">← Atrás</button>
+                <button type="submit" disabled={loading}
+                  className="flex-1 py-3 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-xl font-bold text-white transition-colors">
+                  {loading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Creando...
+                    </span>
+                  ) : 'Crear cuenta ✓'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );

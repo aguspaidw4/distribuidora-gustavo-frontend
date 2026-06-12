@@ -113,6 +113,14 @@ export default function OrdersPage() {
     setItems(items.filter((i) => !(i.productId === productId && i.presentation === presentation)));
   }
 
+  function editItem(item: OrderItem) {
+    // Pre-cargar el formulario con los valores del ítem y quitarlo de la lista
+    setProductId(String(item.productId));
+    setPresentation(item.presentation);
+    setQuantity(String(item.quantity));
+    setItems(items.filter((i) => !(i.productId === item.productId && i.presentation === item.presentation)));
+  }
+
   async function createOrder() {
     if (!customerId) { setConfirm({ message: 'Seleccioná un cliente', confirmLabel: 'Aceptar', confirmColor: 'bg-blue-600 hover:bg-blue-700', onConfirm: () => setConfirm(null) }); return; }
     if (items.length === 0) { setConfirm({ message: 'Agregá productos al pedido', confirmLabel: 'Aceptar', confirmColor: 'bg-blue-600 hover:bg-blue-700', onConfirm: () => setConfirm(null) }); return; }
@@ -242,7 +250,7 @@ export default function OrdersPage() {
                   <th className="p-4 text-left">Cant.</th>
                   <th className="p-4 text-left">Precio unit.</th>
                   <th className="p-4 text-left">Subtotal</th>
-                  <th className="p-4 text-center">Quitar</th>
+                  <th className="p-4 text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -258,7 +266,10 @@ export default function OrdersPage() {
                     <td className="p-4">{formatARS(item.unitPrice)}</td>
                     <td className="p-4 font-bold">{formatARS(item.subtotal)}</td>
                     <td className="p-4 text-center">
-                      <button onClick={() => removeItem(item.productId, item.presentation)} className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded-lg text-sm">Quitar</button>
+                      <div className="flex gap-2 justify-center">
+                        <button onClick={() => editItem(item)} className="bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded-lg text-sm">Editar</button>
+                        <button onClick={() => removeItem(item.productId, item.presentation)} className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded-lg text-sm">Quitar</button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -277,6 +288,7 @@ export default function OrdersPage() {
                       {PRESENTATION_LABELS[item.presentation]}
                     </span>
                   </div>
+                  <button onClick={() => editItem(item)} className="bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded-lg text-xs">Editar</button>
                   <button onClick={() => removeItem(item.productId, item.presentation)} className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded-lg text-xs">Quitar</button>
                 </div>
                 <div className="flex justify-between text-sm text-gray-400">
