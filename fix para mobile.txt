@@ -1,0 +1,18 @@
+EN VERSION MOBILE
+
+en seccion dashboard los numeros se salen de los cuadros. por ejmeplo "ventas totales" y "cobor pendiente" los numeros se salen del modal
+
+en seccion "Pagos" el modal "registrar pago" todos los menus de dentro se salen de la pantalla. ejemplo: "seleccionar pedido, monto, Efectivo.
+
+en seccion "stock" la lista no tiene scroll. se scrollea toda la pagina completa hasta el final.
+
+en seccion "compras" nuevamente modal roto. Se sale de la pantalla. el cuadro "agregar producto" está fuera de encuadre junto con todos los menus dentro.
+
+en seccion "Lista de precio" tampoco tiene scroll. hay que bajar todo al final para poder limpiar la lista o bajar el PDF
+
+en seccion "Usuarios" directamente roto. solo muestra el nombre y Email del los usuarios cargados. pero no te deja ver el rol, editarlo o eliminarlo.
+
+
+NO MOBILE
+
+subir grafico Ventas vs Compras al inicio de todo. que sea el primer dashboard que se visualiza.

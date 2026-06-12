@@ -425,33 +425,63 @@ export default function ProductsPage() {
 
       {/* Paginación */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-8">
           <p className="text-sm text-gray-400">
-            {filtered.length} producto{filtered.length !== 1 ? 's' : ''} — página {page} de {totalPages}
+            {filtered.length} producto{filtered.length !== 1 ? 's' : ''} — pág. {page}/{totalPages}
           </p>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-1 flex-wrap">
+            <button
+              onClick={() => setPage(1)}
+              disabled={page === 1}
+              className="px-2 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+            >
+              «
+            </button>
             <button
               onClick={() => setPage(page - 1)}
               disabled={page === 1}
               className="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
             >
-              ← Anterior
+              ‹
             </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPage(p)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-bold ${p === page ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
-              >
-                {p}
-              </button>
-            ))}
+
+            {/* Mostrar máximo 3 páginas alrededor de la actual */}
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce<(number | string)[]>((acc, p, idx, arr) => {
+                if (idx > 0 && typeof arr[idx - 1] === 'number' && (p as number) - (arr[idx - 1] as number) > 1) {
+                  acc.push('...');
+                }
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, idx) =>
+                p === '...' ? (
+                  <span key={`dots-${idx}`} className="px-2 text-gray-500 text-sm">…</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p as number)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-bold ${p === page ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+
             <button
               onClick={() => setPage(page + 1)}
               disabled={page === totalPages}
               className="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
             >
-              Siguiente →
+              ›
+            </button>
+            <button
+              onClick={() => setPage(totalPages)}
+              disabled={page === totalPages}
+              className="px-2 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+            >
+              »
             </button>
           </div>
         </div>

@@ -1,38 +1,14 @@
 import { useEffect, useState } from 'react';
 import api from '../api/axios';
+import ConfirmModal from '../components/ConfirmModal';
 
-type User = {
-  id: number;
-  name: string;
-  email: string;
-  role: string;
-  createdAt: string;
-};
+type User = { id: number; name: string; email: string; role: string; createdAt: string };
+type Customer = { id: number; name: string; userId: number | null };
+type ConfirmState = { message: string; subMessage?: string; confirmLabel?: string; confirmColor?: string; onConfirm: () => void } | null;
 
-type Customer = {
-  id: number;
-  name: string;
-  userId: number | null;
-};
-
-const ROLE_LABELS: Record<string, string> = {
-  ADMIN: 'Administrador',
-  OWNER: 'Dueño',
-  CLIENT: 'Cliente',
-};
-
-const ROLE_COLORS: Record<string, string> = {
-  ADMIN: 'bg-red-900 text-red-300',
-  OWNER: 'bg-blue-900 text-blue-300',
-  CLIENT: 'bg-green-900 text-green-300',
-};
-
-const EMPTY_FORM = {
-  name: '',
-  email: '',
-  password: '',
-  role: 'OWNER',
-};
+const ROLE_LABELS: Record<string, string> = { ADMIN: 'Administrador', OWNER: 'Dueño', CLIENT: 'Cliente' };
+const ROLE_COLORS: Record<string, string> = { ADMIN: 'bg-red-900 text-red-300', OWNER: 'bg-blue-900 text-blue-300', CLIENT: 'bg-green-900 text-green-300' };
+const EMPTY_FORM = { name: '', email: '', password: '', role: 'OWNER' };
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -42,32 +18,23 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(false);
   const [changingRoleId, setChangingRoleId] = useState<number | null>(null);
   const [linkingUserId, setLinkingUserId] = useState<number | null>(null);
+  const [confirm, setConfirm] = useState<ConfirmState>(null);
 
   async function loadData() {
     try {
-      const [usersRes, customersRes] = await Promise.all([
-        api.get('/users'),
-        api.get('/customers'),
-      ]);
+      const [usersRes, customersRes] = await Promise.all([api.get('/users'), api.get('/customers')]);
       setUsers(usersRes.data);
       setCustomers(customersRes.data);
-    } catch {
-      alert('Error al cargar los datos');
-    }
+    } catch { alert('Error al cargar los datos'); }
   }
 
   useEffect(() => { loadData(); }, []);
 
-  // Buscar qué cliente tiene vinculado un userId
   function getLinkedCustomer(userId: number): Customer | null {
     return customers.find((c) => c.userId === userId) ?? null;
   }
-
-  // Clientes disponibles para vincular (sin usuario vinculado, o el actual)
   function availableCustomers(currentUserId: number): Customer[] {
-    return customers.filter(
-      (c) => c.userId === null || c.userId === currentUserId,
-    );
+    return customers.filter((c) => c.userId === null || c.userId === currentUserId);
   }
 
   async function changeRole(id: number, newRole: string) {
@@ -78,20 +45,15 @@ export default function UsersPage() {
     } catch (error: any) {
       const msg = error.response?.data?.message;
       alert(typeof msg === 'string' ? 'Error: ' + msg : 'Error al cambiar el rol');
-    } finally {
-      setChangingRoleId(null);
-    }
+    } finally { setChangingRoleId(null); }
   }
 
   async function linkCustomer(userId: number, customerId: string) {
     setLinkingUserId(userId);
     try {
       if (customerId === '') {
-        // Desvincular — primero buscar el cliente actual vinculado
         const linked = getLinkedCustomer(userId);
-        if (linked) {
-          await api.patch(`/customers/${linked.id}/link-user`, { userId: null });
-        }
+        if (linked) await api.patch(`/customers/${linked.id}/link-user`, { userId: null });
       } else {
         await api.patch(`/customers/${customerId}/link-user`, { userId });
       }
@@ -99,265 +61,264 @@ export default function UsersPage() {
     } catch (error: any) {
       const msg = error.response?.data?.message;
       alert(typeof msg === 'string' ? 'Error: ' + msg : 'Error al vincular el cliente');
-    } finally {
-      setLinkingUserId(null);
-    }
-  }
-
-  function openModal() {
-    setForm(EMPTY_FORM);
-    setShowModal(true);
-  }
-
-  function closeModal() {
-    setShowModal(false);
-    setForm(EMPTY_FORM);
-  }
-
-  function handleChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
-  ) {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    } finally { setLinkingUserId(null); }
   }
 
   async function saveUser(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name.trim()) { alert('El nombre es obligatorio'); return; }
-    if (!form.email.trim()) { alert('El email es obligatorio'); return; }
-    if (form.password.length < 6) {
-      alert('La contraseña debe tener al menos 6 caracteres');
-      return;
-    }
+    if (!form.name.trim() || !form.email.trim() || form.password.length < 6) return;
     setLoading(true);
     try {
-      await api.post('/users', {
-        name: form.name.trim(),
-        email: form.email.trim(),
-        password: form.password,
-        role: form.role,
-      });
-      closeModal();
+      await api.post('/users', { name: form.name.trim(), email: form.email.trim(), password: form.password, role: form.role });
+      setShowModal(false);
+      setForm(EMPTY_FORM);
       loadData();
     } catch (error: any) {
       const msg = error.response?.data?.message;
       alert(typeof msg === 'string' ? 'Error: ' + msg : 'Error al crear el usuario');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }
 
-  async function deleteUser(id: number, name: string) {
-    if (!confirm(`¿Eliminar al usuario "${name}"?\nEsta acción no se puede deshacer.`)) return;
-    try {
-      await api.delete(`/users/${id}`);
-      loadData();
-    } catch (error: any) {
-      const msg = error.response?.data?.message;
-      alert(typeof msg === 'string' ? 'Error: ' + msg : 'No se pudo eliminar el usuario');
-    }
+  function confirmDelete(id: number, name: string) {
+    setConfirm({
+      message: `¿Eliminar al usuario "${name}"?`,
+      subMessage: 'Esta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar',
+      confirmColor: 'bg-red-600 hover:bg-red-700',
+      onConfirm: async () => {
+        setConfirm(null);
+        try {
+          await api.delete(`/users/${id}`);
+          loadData();
+        } catch (error: any) {
+          const msg = error.response?.data?.message;
+          setConfirm({ message: typeof msg === 'string' ? msg : 'No se pudo eliminar', confirmLabel: 'Aceptar', confirmColor: 'bg-blue-600 hover:bg-blue-700', onConfirm: () => setConfirm(null) });
+        }
+      },
+    });
   }
 
   const clientUsers = users.filter((u) => u.role === 'CLIENT');
   const otherUsers = users.filter((u) => u.role !== 'CLIENT');
 
-  return (
-    <div className="p-8">
+  // Tarjeta de usuario para mobile
+  function UserCard({ user, showLink = false }: { user: User; showLink?: boolean }) {
+    const linked = showLink ? getLinkedCustomer(user.id) : null;
+    const available = showLink ? availableCustomers(user.id) : [];
+    return (
+      <div className="bg-gray-800 rounded-2xl p-4 space-y-3">
+        <div className="flex justify-between items-start">
+          <div>
+            <p className="font-bold text-white">{user.name}</p>
+            <p className="text-gray-400 text-sm">{user.email}</p>
+          </div>
+          <span className={`px-2 py-1 rounded-full text-xs font-bold ${ROLE_COLORS[user.role] ?? 'bg-gray-700 text-gray-300'}`}>
+            {ROLE_LABELS[user.role] ?? user.role}
+          </span>
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block">Cambiar rol</label>
+          <select value={user.role} onChange={(e) => changeRole(user.id, e.target.value)}
+            disabled={changingRoleId === user.id}
+            className="w-full p-2 rounded-lg bg-gray-700 text-sm disabled:opacity-50">
+            <option value="CLIENT">Cliente</option>
+            <option value="OWNER">Dueño</option>
+            <option value="ADMIN">Administrador</option>
+          </select>
+        </div>
+        {showLink && (
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Vincular con cliente</label>
+            <select value={linked ? String(linked.id) : ''} onChange={(e) => linkCustomer(user.id, e.target.value)}
+              disabled={linkingUserId === user.id}
+              className="w-full p-2 rounded-lg bg-gray-700 text-sm disabled:opacity-50">
+              <option value="">— Sin vincular —</option>
+              {available.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            {linked && <p className="text-xs text-green-400 mt-1">✓ Vinculado con {linked.name}</p>}
+          </div>
+        )}
+        <button onClick={() => confirmDelete(user.id, user.name)}
+          className="w-full bg-red-600 hover:bg-red-700 py-2 rounded-lg text-sm font-bold">
+          Eliminar
+        </button>
+      </div>
+    );
+  }
 
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-4xl font-bold">Usuarios</h1>
-        <button
-          onClick={openModal}
-          className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-bold"
-        >
+  return (
+    <div className="p-4 md:p-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl md:text-4xl font-bold">Usuarios</h1>
+        <button onClick={() => setShowModal(true)}
+          className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-bold text-sm">
           + Nuevo Usuario
         </button>
       </div>
 
-      {/* Tabla usuarios ADMIN y OWNER */}
+      {/* Admins y Dueños */}
       {otherUsers.length > 0 && (
-        <div className="bg-gray-800 rounded-2xl overflow-hidden mb-8">
-          <div className="p-4 border-b border-gray-700">
-            <h2 className="font-bold text-lg">Administradores y Dueños</h2>
-          </div>
-          <table className="w-full">
-            <thead className="bg-gray-700">
-              <tr>
-                <th className="p-4 text-left">Nombre</th>
-                <th className="p-4 text-left">Email</th>
-                <th className="p-4 text-left">Rol actual</th>
-                <th className="p-4 text-left">Cambiar rol</th>
-                <th className="p-4 text-center">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {otherUsers.map((user) => (
-                <tr key={user.id} className="border-b border-gray-700">
-                  <td className="p-4 font-medium">{user.name}</td>
-                  <td className="p-4 text-gray-400">{user.email}</td>
-                  <td className="p-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${ROLE_COLORS[user.role] ?? 'bg-gray-700 text-gray-300'}`}>
-                      {ROLE_LABELS[user.role] ?? user.role}
-                    </span>
-                  </td>
-                  <td className="p-4">
-                    <select
-                      value={user.role}
-                      onChange={(e) => changeRole(user.id, e.target.value)}
-                      disabled={changingRoleId === user.id}
-                      className="p-2 rounded-lg bg-gray-700 text-sm disabled:opacity-50"
-                    >
-                      <option value="CLIENT">Cliente</option>
-                      <option value="OWNER">Dueño</option>
-                      <option value="ADMIN">Administrador</option>
-                    </select>
-                  </td>
-                  <td className="p-4 text-center">
-                    <button
-                      onClick={() => deleteUser(user.id, user.name)}
-                      className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm"
-                    >
-                      Eliminar
-                    </button>
-                  </td>
+        <div className="mb-8">
+          <h2 className="font-bold text-lg mb-3">Administradores y Dueños</h2>
+
+          {/* Desktop — tabla */}
+          <div className="hidden md:block bg-gray-800 rounded-2xl overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-gray-700">
+                <tr>
+                  <th className="p-4 text-left">Nombre</th>
+                  <th className="p-4 text-left">Email</th>
+                  <th className="p-4 text-left">Rol actual</th>
+                  <th className="p-4 text-left">Cambiar rol</th>
+                  <th className="p-4 text-center">Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Tabla usuarios CLIENT con vinculación */}
-      <div className="bg-gray-800 rounded-2xl overflow-hidden">
-        <div className="p-4 border-b border-gray-700">
-          <h2 className="font-bold text-lg">Clientes</h2>
-          <p className="text-sm text-gray-400 mt-1">
-            Vinculá cada usuario cliente con su registro en la lista de clientes
-          </p>
-        </div>
-
-        {clientUsers.length === 0 ? (
-          <p className="p-8 text-center text-gray-500">
-            No hay usuarios con rol Cliente todavía
-          </p>
-        ) : (
-          <table className="w-full">
-            <thead className="bg-gray-700">
-              <tr>
-                <th className="p-4 text-left">Nombre</th>
-                <th className="p-4 text-left">Email</th>
-                <th className="p-4 text-left">Rol</th>
-                <th className="p-4 text-left">Vincular con cliente</th>
-                <th className="p-4 text-center">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clientUsers.map((user) => {
-                const linked = getLinkedCustomer(user.id);
-                const available = availableCustomers(user.id);
-                return (
+              </thead>
+              <tbody>
+                {otherUsers.map((user) => (
                   <tr key={user.id} className="border-b border-gray-700">
                     <td className="p-4 font-medium">{user.name}</td>
                     <td className="p-4 text-gray-400">{user.email}</td>
                     <td className="p-4">
-                      <select
-                        value={user.role}
-                        onChange={(e) => changeRole(user.id, e.target.value)}
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${ROLE_COLORS[user.role] ?? 'bg-gray-700 text-gray-300'}`}>
+                        {ROLE_LABELS[user.role] ?? user.role}
+                      </span>
+                    </td>
+                    <td className="p-4">
+                      <select value={user.role} onChange={(e) => changeRole(user.id, e.target.value)}
                         disabled={changingRoleId === user.id}
-                        className="p-2 rounded-lg bg-gray-700 text-sm disabled:opacity-50"
-                      >
+                        className="p-2 rounded-lg bg-gray-700 text-sm disabled:opacity-50">
                         <option value="CLIENT">Cliente</option>
                         <option value="OWNER">Dueño</option>
                         <option value="ADMIN">Administrador</option>
                       </select>
                     </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-2">
-                        <select
-                          value={linked ? String(linked.id) : ''}
-                          onChange={(e) => linkCustomer(user.id, e.target.value)}
-                          disabled={linkingUserId === user.id}
-                          className="p-2 rounded-lg bg-gray-700 text-sm disabled:opacity-50 max-w-[200px]"
-                        >
-                          <option value="">— Sin vincular —</option>
-                          {available.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
-                            </option>
-                          ))}
-                        </select>
-                        {linked && (
-                          <span className="text-xs text-green-400">✓ Vinculado</span>
-                        )}
-                      </div>
-                    </td>
                     <td className="p-4 text-center">
-                      <button
-                        onClick={() => deleteUser(user.id, user.name)}
-                        className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm"
-                      >
-                        Eliminar
-                      </button>
+                      <button onClick={() => confirmDelete(user.id, user.name)}
+                        className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm">Eliminar</button>
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile — tarjetas */}
+          <div className="md:hidden space-y-3">
+            {otherUsers.map((user) => <UserCard key={user.id} user={user} />)}
+          </div>
+        </div>
+      )}
+
+      {/* Clientes */}
+      <div>
+        <h2 className="font-bold text-lg mb-1">Clientes</h2>
+        <p className="text-sm text-gray-400 mb-3">Vinculá cada usuario cliente con su registro en la lista de clientes</p>
+
+        {clientUsers.length === 0 ? (
+          <div className="bg-gray-800 rounded-2xl p-8 text-center text-gray-500">No hay usuarios con rol Cliente todavía</div>
+        ) : (
+          <>
+            {/* Desktop — tabla */}
+            <div className="hidden md:block bg-gray-800 rounded-2xl overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th className="p-4 text-left">Nombre</th>
+                    <th className="p-4 text-left">Email</th>
+                    <th className="p-4 text-left">Rol</th>
+                    <th className="p-4 text-left">Vincular con cliente</th>
+                    <th className="p-4 text-center">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {clientUsers.map((user) => {
+                    const linked = getLinkedCustomer(user.id);
+                    const available = availableCustomers(user.id);
+                    return (
+                      <tr key={user.id} className="border-b border-gray-700">
+                        <td className="p-4 font-medium">{user.name}</td>
+                        <td className="p-4 text-gray-400">{user.email}</td>
+                        <td className="p-4">
+                          <select value={user.role} onChange={(e) => changeRole(user.id, e.target.value)}
+                            disabled={changingRoleId === user.id}
+                            className="p-2 rounded-lg bg-gray-700 text-sm disabled:opacity-50">
+                            <option value="CLIENT">Cliente</option>
+                            <option value="OWNER">Dueño</option>
+                            <option value="ADMIN">Administrador</option>
+                          </select>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-2">
+                            <select value={linked ? String(linked.id) : ''} onChange={(e) => linkCustomer(user.id, e.target.value)}
+                              disabled={linkingUserId === user.id}
+                              className="p-2 rounded-lg bg-gray-700 text-sm disabled:opacity-50 max-w-[200px]">
+                              <option value="">— Sin vincular —</option>
+                              {available.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                            {linked && <span className="text-xs text-green-400">✓ Vinculado</span>}
+                          </div>
+                        </td>
+                        <td className="p-4 text-center">
+                          <button onClick={() => confirmDelete(user.id, user.name)}
+                            className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm">Eliminar</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile — tarjetas */}
+            <div className="md:hidden space-y-3">
+              {clientUsers.map((user) => <UserCard key={user.id} user={user} showLink />)}
+            </div>
+          </>
         )}
       </div>
 
       {/* Modal nuevo usuario */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <form
-            onSubmit={saveUser}
-            className="bg-gray-800 p-8 rounded-2xl w-full max-w-md"
-          >
+        <div className="fixed inset-0 bg-black/70 flex items-end md:items-center justify-center z-50">
+          <form onSubmit={saveUser} className="bg-gray-800 p-6 md:p-8 rounded-t-2xl md:rounded-2xl w-full md:max-w-md">
             <h2 className="text-2xl font-bold mb-6">Nuevo Usuario</h2>
-
             <label className="block text-sm text-gray-400 mb-1">Nombre *</label>
-            <input type="text" name="name" placeholder="Ej: María"
-              value={form.name} onChange={handleChange}
-              className="w-full p-3 rounded-lg bg-gray-700 mb-4" required
-            />
-
+            <input type="text" name="name" placeholder="Ej: María" value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className="w-full p-3 rounded-lg bg-gray-700 mb-4" required />
             <label className="block text-sm text-gray-400 mb-1">Email *</label>
-            <input type="email" name="email" placeholder="ejemplo@correo.com"
-              value={form.email} onChange={handleChange}
-              className="w-full p-3 rounded-lg bg-gray-700 mb-4" required
-            />
-
-            <label className="block text-sm text-gray-400 mb-1">
-              Contraseña * (mínimo 6 caracteres)
-            </label>
-            <input type="password" name="password" placeholder="••••••••"
-              value={form.password} onChange={handleChange}
-              className="w-full p-3 rounded-lg bg-gray-700 mb-4" required
-            />
-
+            <input type="email" name="email" placeholder="ejemplo@correo.com" value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              className="w-full p-3 rounded-lg bg-gray-700 mb-4" required />
+            <label className="block text-sm text-gray-400 mb-1">Contraseña * (mínimo 6 caracteres)</label>
+            <input type="password" name="password" placeholder="••••••••" value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              className="w-full p-3 rounded-lg bg-gray-700 mb-4" required />
             <label className="block text-sm text-gray-400 mb-1">Rol *</label>
-            <select name="role" value={form.role} onChange={handleChange}
-              className="w-full p-3 rounded-lg bg-gray-700 mb-6"
-            >
+            <select name="role" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
+              className="w-full p-3 rounded-lg bg-gray-700 mb-6">
               <option value="CLIENT">Cliente</option>
               <option value="OWNER">Dueño</option>
               <option value="ADMIN">Administrador</option>
             </select>
-
             <div className="flex gap-4">
               <button type="submit" disabled={loading}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed p-3 rounded-lg font-bold"
-              >
+                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed p-3 rounded-lg font-bold">
                 {loading ? 'Guardando...' : 'Crear Usuario'}
               </button>
-              <button type="button" onClick={closeModal} disabled={loading}
-                className="flex-1 bg-gray-600 hover:bg-gray-500 disabled:cursor-not-allowed p-3 rounded-lg"
-              >
+              <button type="button" onClick={() => { setShowModal(false); setForm(EMPTY_FORM); }} disabled={loading}
+                className="flex-1 bg-gray-600 hover:bg-gray-500 disabled:cursor-not-allowed p-3 rounded-lg">
                 Cancelar
               </button>
             </div>
           </form>
         </div>
+      )}
+
+      {confirm && (
+        <ConfirmModal message={confirm.message} subMessage={confirm.subMessage}
+          confirmLabel={confirm.confirmLabel} confirmColor={confirm.confirmColor}
+          onConfirm={confirm.onConfirm} onCancel={() => setConfirm(null)} />
       )}
     </div>
   );

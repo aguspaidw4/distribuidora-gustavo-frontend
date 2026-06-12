@@ -222,7 +222,7 @@ export default function StockPage() {
       )}
 
       {/* Tabla movimientos */}
-      <div className="bg-gray-800 rounded-2xl overflow-x-auto">
+      <div className="bg-gray-800 rounded-2xl overflow-hidden max-h-[60vh] md:max-h-none overflow-y-auto">
         <table className="w-full">
           <thead className="bg-gray-700">
             <tr>

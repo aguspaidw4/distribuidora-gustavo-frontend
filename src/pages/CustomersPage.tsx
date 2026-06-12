@@ -28,6 +28,8 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState('');
   const [confirm, setConfirm] = useState<ConfirmState>(null);
+  const [sort, setSort] = useState<'default' | 'az' | 'za'>('default');
+  const [search, setSearch] = useState('');
 
   async function loadCustomers() {
     try {
@@ -39,6 +41,16 @@ export default function CustomersPage() {
   }
 
   useEffect(() => { loadCustomers(); }, []);
+
+  const sortedCustomers = [...customers].sort((a, b) => {
+    if (sort === 'az') return a.name.localeCompare(b.name);
+    if (sort === 'za') return b.name.localeCompare(a.name);
+    return 0;
+  }).filter((c) =>
+    c.name.toLowerCase().includes(search.toLowerCase()) ||
+    (c.phone && c.phone.includes(search)) ||
+    (c.address && c.address.toLowerCase().includes(search.toLowerCase()))
+  );
 
   function openNewModal() {
     setEditId(null);
@@ -122,11 +134,41 @@ export default function CustomersPage() {
   return (
     <div className="p-4 md:p-8">
 
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
         <h1 className="text-3xl md:text-4xl font-bold">Clientes</h1>
-        <button onClick={openNewModal} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-bold text-sm">
-          + Nuevo Cliente
-        </button>
+        <div className="flex gap-2">
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as 'default' | 'az' | 'za')}
+            className="p-2 rounded-lg bg-gray-700 text-sm"
+          >
+            <option value="default">Orden de carga</option>
+            <option value="az">A → Z</option>
+            <option value="za">Z → A</option>
+          </select>
+          <button onClick={openNewModal} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-bold text-sm">
+            + Nuevo Cliente
+          </button>
+        </div>
+      </div>
+
+      {/* Buscador */}
+      <div className="relative mb-6">
+        <input
+          type="text"
+          placeholder="Buscar por nombre, teléfono o dirección..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full p-3 rounded-lg bg-gray-700 text-sm pr-10"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-lg"
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {/* Vista desktop — tabla */}
@@ -141,12 +183,14 @@ export default function CustomersPage() {
             </tr>
           </thead>
           <tbody>
-            {customers.length === 0 ? (
+            {sortedCustomers.length === 0 ? (
               <tr>
-                <td colSpan={4} className="p-8 text-center text-gray-500">No hay clientes cargados todavía</td>
+                <td colSpan={4} className="p-8 text-center text-gray-500">
+                  {search ? `No se encontraron clientes para "${search}"` : 'No hay clientes cargados todavía'}
+                </td>
               </tr>
             ) : (
-              customers.map((customer) => (
+              sortedCustomers.map((customer) => (
                 <tr key={customer.id} className="border-b border-gray-700">
                   <td className="p-4 font-medium">{customer.name}</td>
                   <td className="p-4 text-gray-400">{customer.phone || <span className="text-gray-600 italic">Sin teléfono</span>}</td>
@@ -166,10 +210,12 @@ export default function CustomersPage() {
 
       {/* Vista mobile — tarjetas */}
       <div className="md:hidden space-y-3">
-        {customers.length === 0 ? (
-          <div className="bg-gray-800 rounded-2xl p-8 text-center text-gray-500">No hay clientes cargados todavía</div>
+        {sortedCustomers.length === 0 ? (
+          <div className="bg-gray-800 rounded-2xl p-8 text-center text-gray-500">
+            {search ? `No se encontraron clientes para "${search}"` : 'No hay clientes cargados todavía'}
+          </div>
         ) : (
-          customers.map((customer) => (
+          sortedCustomers.map((customer) => (
             <div key={customer.id} className="bg-gray-800 rounded-2xl p-4">
               <div className="flex justify-between items-start mb-3">
                 <h3 className="font-bold text-white text-lg">{customer.name}</h3>
