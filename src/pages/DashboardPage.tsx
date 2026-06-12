@@ -119,7 +119,7 @@ export default function DashboardPage() {
                   </Pie>
                   <Tooltip
                     contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px', color: '#fff' }}
-                    formatter={(value: number) => [formatARS(value), '']}
+                    formatter={(value) => [formatARS(Number(value)), '']}
                   />
                   <Legend
                     formatter={(value) => <span style={{ color: '#d1d5db' }}>{value}</span>}
