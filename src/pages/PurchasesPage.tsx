@@ -1,694 +1,323 @@
 import { useEffect, useState } from 'react';
 import api from '../api/axios';
 import ProductSearchSelect from '../components/ProductSearchSelect';
+import ConfirmModal from '../components/ConfirmModal';
 
-type Supplier = {
-  id: number;
-  name: string;
-  cuit: string | null;
-  address: string | null;
-  phone: string | null;
-};
-
+type Customer = { id: number; name: string };
 type Product = {
-  id: number;
-  name: string;
-  purchasePrice: string;
-  stock: number;
+  id: number; name: string; stock: number;
+  salePriceUnit: string | null;
+  salePriceTira: string | null;
+  salePriceCaja: string | null;
 };
-
-type PurchaseItem = {
-  productId: number;
-  productName: string;
-  quantity: number;
-  unitCost: number;
-  subtotal: number;
-  updatePrice: boolean;
+type Presentation = 'UNIDAD' | 'TIRA' | 'CAJA';
+type OrderItem = {
+  productId: number; name: string; presentation: Presentation;
+  quantity: number; unitPrice: number; subtotal: number; availableStock: number;
 };
-
-type PurchaseDetail = {
-  id: number;
-  productName: string;
-  quantity: number;
-  unitCost: string;
-  subtotal: string;
-  updatePrice: boolean;
-};
-
-type Purchase = {
-  id: number;
-  total: string;
-  paidAmount: string;
-  pendingAmount: string;
-  notes: string;
-  createdAt: string;
-  supplier: { name: string };
-  details: PurchaseDetail[];
-};
+type ConfirmState = {
+  message: string; subMessage?: string; confirmLabel?: string;
+  confirmColor?: string; onConfirm: () => void;
+} | null;
 
 function formatARS(value: number | string): string {
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    minimumFractionDigits: 2,
-  }).format(Number(value));
+  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 }).format(Number(value));
 }
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleString('es-AR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+const PRESENTATION_LABELS: Record<Presentation, string> = { UNIDAD: 'Unidad', TIRA: 'Tira', CAJA: 'Caja' };
 
-function normalizeCuit(value: string): string {
-  return value.replace(/[-\s]/g, '');
-}
-
-function validateCuit(cuit: string): string | null {
-  const normalized = normalizeCuit(cuit);
-  if (!/^\d+$/.test(normalized)) return 'El CUIT debe contener solo números';
-  if (normalized.length !== 11) return 'El CUIT debe tener exactamente 11 dígitos';
-  const weights = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
-  const digits = normalized.split('').map(Number);
-  const sum = weights.reduce((acc, w, i) => acc + w * digits[i], 0);
-  const remainder = sum % 11;
-  const verifier = remainder === 0 ? 0 : remainder === 1 ? 9 : 11 - remainder;
-  if (digits[10] !== verifier) return 'El dígito verificador del CUIT es incorrecto';
-  return null;
-}
-
-function validateDomicilio(dom: string): string | null {
-  if (!dom.trim()) return 'La dirección es obligatoria';
-  if (!/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/.test(dom)) return 'La dirección debe contener al menos una letra';
-  return null;
-}
-
-const EMPTY_SUPPLIER_FORM = {
-  name: '',
-  cuit: '',
-  address: '',
-  phone: '',
-  notes: '',
-};
-
-export default function PurchasesPage() {
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+export default function OrdersPage() {
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
-
-  const [supplierId, setSupplierId] = useState('');
+  const [customerId, setCustomerId] = useState('');
   const [productId, setProductId] = useState('');
+  const [presentation, setPresentation] = useState<Presentation>('UNIDAD');
   const [quantity, setQuantity] = useState('');
-  const [unitCost, setUnitCost] = useState('');
-  const [updatePrice, setUpdatePrice] = useState(false);
-  const [paidAmount, setPaidAmount] = useState('');
-  const [notes, setNotes] = useState('');
-
-  const [items, setItems] = useState<PurchaseItem[]>([]);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [items, setItems] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(false);
-
-  // Modal nueva distribuidora
-  const [showSupplierModal, setShowSupplierModal] = useState(false);
-  const [supplierForm, setSupplierForm] = useState(EMPTY_SUPPLIER_FORM);
-  const [savingSupplier, setSavingSupplier] = useState(false);
-  const [supplierError, setSupplierError] = useState('');
-
-  // Modal pago a distribuidora
-  const [paymentPurchase, setPaymentPurchase] = useState<Purchase | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState('');
-  const [savingPayment, setSavingPayment] = useState(false);
-  const [paymentError, setPaymentError] = useState('');
-
-  async function loadData() {
-    try {
-      const [suppRes, prodRes, purchRes] = await Promise.all([
-        api.get('/suppliers'),
-        api.get('/products'),
-        api.get('/purchases'),
-      ]);
-      setSuppliers(suppRes.data);
-      setProducts(prodRes.data);
-      setPurchases(purchRes.data);
-    } catch {
-      alert('Error al cargar los datos');
-    }
-  }
+  const [confirm, setConfirm] = useState<ConfirmState>(null);
 
   useEffect(() => { loadData(); }, []);
 
+  async function loadData() {
+    const [customersRes, productsRes] = await Promise.all([
+      api.get('/customers'), api.get('/products'),
+    ]);
+    setCustomers(customersRes.data);
+    setProducts(productsRes.data);
+  }
+
   const selectedProduct = products.find((p) => p.id === Number(productId));
 
-  // ── Distribuidora ──
-  function openSupplierModal() {
-    setSupplierForm(EMPTY_SUPPLIER_FORM);
-    setSupplierError('');
-    setShowSupplierModal(true);
+  function availablePresentations(product: Product): Presentation[] {
+    const pres: Presentation[] = [];
+    if (product.salePriceUnit) pres.push('UNIDAD');
+    if (product.salePriceTira) pres.push('TIRA');
+    if (product.salePriceCaja) pres.push('CAJA');
+    return pres.length > 0 ? pres : ['UNIDAD'];
   }
 
-  function handleSupplierChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-  ) {
-    setSupplierForm({ ...supplierForm, [e.target.name]: e.target.value });
-    setSupplierError('');
+  function getPriceForPresentation(product: Product, pres: Presentation): number {
+    if (pres === 'TIRA' && product.salePriceTira) return Number(product.salePriceTira);
+    if (pres === 'CAJA' && product.salePriceCaja) return Number(product.salePriceCaja);
+    return Number(product.salePriceUnit ?? product.salePriceTira ?? product.salePriceCaja ?? 0);
   }
 
-  async function saveSupplier(e: React.FormEvent) {
-    e.preventDefault();
-    setSupplierError('');
-
-    if (!supplierForm.name.trim()) {
-      setSupplierError('El nombre de fantasía es obligatorio');
-      return;
-    }
-
-    const domErr = validateDomicilio(supplierForm.address);
-    if (domErr) { setSupplierError(domErr); return; }
-
-    if (supplierForm.cuit.trim()) {
-      const cuitErr = validateCuit(supplierForm.cuit);
-      if (cuitErr) { setSupplierError(cuitErr); return; }
-    }
-
-    setSavingSupplier(true);
-    try {
-      await api.post('/suppliers', {
-        name: supplierForm.name.trim(),
-        address: supplierForm.address.trim(),
-        cuit: supplierForm.cuit.trim() ? normalizeCuit(supplierForm.cuit) : undefined,
-        phone: supplierForm.phone.trim() || undefined,
-        notes: supplierForm.notes.trim() || undefined,
-      });
-      setShowSupplierModal(false);
-      setSupplierForm(EMPTY_SUPPLIER_FORM);
-      loadData();
-    } catch (error: any) {
-      const msg = error.response?.data?.message;
-      setSupplierError(typeof msg === 'string' ? msg : 'Error al guardar la distribuidora');
-    } finally {
-      setSavingSupplier(false);
-    }
+  function handleProductChange(id: string) {
+    setProductId(id);
+    setQuantity('');
+    const product = products.find((p) => p.id === Number(id));
+    if (product) setPresentation(availablePresentations(product)[0]);
   }
 
-  // ── Pago a distribuidora ──
-  function openPaymentModal(purchase: Purchase) {
-    setPaymentPurchase(purchase);
-    setPaymentAmount('');
-    setPaymentError('');
-  }
+  const unitPrice = selectedProduct ? getPriceForPresentation(selectedProduct, presentation) : 0;
 
-  function closePaymentModal() {
-    setPaymentPurchase(null);
-    setPaymentAmount('');
-    setPaymentError('');
-  }
-
-  async function savePayment(e: React.FormEvent) {
-    e.preventDefault();
-    if (!paymentPurchase) return;
-    setPaymentError('');
-
-    const amount = Number(paymentAmount);
-    if (!amount || amount <= 0) {
-      setPaymentError('Ingresá un monto válido');
-      return;
-    }
-    if (amount > Number(paymentPurchase.pendingAmount)) {
-      setPaymentError(
-        `El monto no puede superar el pendiente de ${formatARS(paymentPurchase.pendingAmount)}`,
-      );
-      return;
-    }
-
-    setSavingPayment(true);
-    try {
-      await api.post(`/purchases/${paymentPurchase.id}/payment`, { amount });
-      closePaymentModal();
-      loadData();
-    } catch (error: any) {
-      const msg = error.response?.data?.message;
-      setPaymentError(typeof msg === 'string' ? msg : 'Error al registrar el pago');
-    } finally {
-      setSavingPayment(false);
-    }
-  }
-
-  // ── Compra ──
   function addItem() {
-    if (!productId) { alert('Seleccioná un producto'); return; }
+    if (!selectedProduct) { setConfirm({ message: 'Seleccioná un producto', confirmLabel: 'Aceptar', confirmColor: 'bg-blue-600 hover:bg-blue-700', onConfirm: () => setConfirm(null) }); return; }
     const qty = Number(quantity);
-    const cost = Number(unitCost);
-    if (!qty || qty <= 0) { alert('Ingresá una cantidad válida'); return; }
-    if (!cost || cost <= 0) { alert('Ingresá un precio de costo válido'); return; }
+    if (!qty || qty <= 0) { setConfirm({ message: 'Ingresá una cantidad válida', confirmLabel: 'Aceptar', confirmColor: 'bg-blue-600 hover:bg-blue-700', onConfirm: () => setConfirm(null) }); return; }
 
-    const product = products.find((p) => p.id === Number(productId));
-    if (!product) return;
+    const existingItem = items.find((i) => i.productId === selectedProduct.id && i.presentation === presentation);
+    const alreadyInCart = existingItem ? existingItem.quantity : 0;
+    const totalRequested = alreadyInCart + qty;
 
-    const existing = items.find((i) => i.productId === product.id);
-    if (existing) {
+    if (totalRequested > selectedProduct.stock) {
+      setConfirm({
+        message: `Stock insuficiente para "${selectedProduct.name}"`,
+        subMessage: `Disponible: ${selectedProduct.stock}${alreadyInCart > 0 ? ` (ya tenés ${alreadyInCart} en el carrito)` : ''}`,
+        confirmLabel: 'Aceptar',
+        confirmColor: 'bg-blue-600 hover:bg-blue-700',
+        onConfirm: () => setConfirm(null),
+      });
+      return;
+    }
+
+    if (existingItem) {
       setItems(items.map((i) =>
-        i.productId === product.id
-          ? { ...i, quantity: i.quantity + qty, unitCost: cost, subtotal: cost * (i.quantity + qty), updatePrice }
+        i.productId === selectedProduct.id && i.presentation === presentation
+          ? { ...i, quantity: i.quantity + qty, subtotal: i.unitPrice * (i.quantity + qty) }
           : i,
       ));
     } else {
       setItems([...items, {
-        productId: product.id,
-        productName: product.name,
-        quantity: qty,
-        unitCost: cost,
-        subtotal: cost * qty,
-        updatePrice,
+        productId: selectedProduct.id, name: selectedProduct.name,
+        presentation, quantity: qty, unitPrice, subtotal: unitPrice * qty,
+        availableStock: selectedProduct.stock,
       }]);
     }
-
     setProductId('');
     setQuantity('');
-    setUnitCost('');
-    setUpdatePrice(false);
   }
 
-  function removeItem(productId: number) {
-    setItems(items.filter((i) => i.productId !== productId));
+  function removeItem(productId: number, presentation: Presentation) {
+    setItems(items.filter((i) => !(i.productId === productId && i.presentation === presentation)));
   }
 
-  const total = items.reduce((acc, i) => acc + i.subtotal, 0);
-
-  async function createPurchase() {
-    if (!supplierId) { alert('Seleccioná un proveedor'); return; }
-    if (items.length === 0) { alert('Agregá productos a la compra'); return; }
-
-    const paid = Number(paidAmount) || 0;
-    if (paid < 0) { alert('El monto pagado no puede ser negativo'); return; }
-    if (paid > total) { alert('El monto pagado no puede superar el total'); return; }
+  async function createOrder() {
+    if (!customerId) { setConfirm({ message: 'Seleccioná un cliente', confirmLabel: 'Aceptar', confirmColor: 'bg-blue-600 hover:bg-blue-700', onConfirm: () => setConfirm(null) }); return; }
+    if (items.length === 0) { setConfirm({ message: 'Agregá productos al pedido', confirmLabel: 'Aceptar', confirmColor: 'bg-blue-600 hover:bg-blue-700', onConfirm: () => setConfirm(null) }); return; }
 
     setLoading(true);
     try {
-      await api.post('/purchases', {
-        supplierId: Number(supplierId),
-        items: items.map((i) => ({
-          productId: i.productId,
-          quantity: i.quantity,
-          unitCost: i.unitCost,
-          updatePrice: i.updatePrice,
+      await api.post('/orders', {
+        customerId: Number(customerId),
+        items: items.map((item) => ({
+          productId: item.productId, quantity: item.quantity,
+          presentation: item.presentation, unitPrice: item.unitPrice,
         })),
-        paidAmount: paid,
-        notes: notes.trim() || undefined,
       });
-
-      alert('Compra registrada correctamente');
-      setSupplierId('');
+      setConfirm({
+        message: '¡Pedido creado correctamente!',
+        confirmLabel: 'Aceptar',
+        confirmColor: 'bg-green-600 hover:bg-green-700',
+        onConfirm: () => setConfirm(null),
+      });
+      setCustomerId('');
       setItems([]);
-      setPaidAmount('');
-      setNotes('');
-      loadData();
+      const productsRes = await api.get('/products');
+      setProducts(productsRes.data);
     } catch (error: any) {
       const msg = error.response?.data?.message;
-      alert(typeof msg === 'string' ? 'Error: ' + msg : 'Error al registrar la compra');
+      setConfirm({
+        message: Array.isArray(msg) ? msg.join('\n') : typeof msg === 'string' ? msg : 'Ocurrió un error al crear el pedido',
+        confirmLabel: 'Aceptar',
+        confirmColor: 'bg-blue-600 hover:bg-blue-700',
+        onConfirm: () => setConfirm(null),
+      });
     } finally {
       setLoading(false);
     }
   }
 
-  const selectedSupplier = suppliers.find((s) => s.id === Number(supplierId));
+  const total = items.reduce((acc, item) => acc + item.subtotal, 0);
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
+      <h1 className="text-3xl md:text-4xl font-bold mb-6">Nuevo Pedido</h1>
 
-      {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-4xl font-bold">Compras a Distribuidoras</h1>
-        <button
-          onClick={openSupplierModal}
-          className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-bold"
-        >
-          + Nueva Distribuidora
-        </button>
-      </div>
+      {/* Formulario */}
+      <div className="bg-gray-800 p-4 md:p-6 rounded-2xl mb-6">
 
-      {/* Formulario nueva compra */}
-      <div className="bg-gray-800 p-6 rounded-2xl mb-8">
-        <h2 className="text-xl font-bold mb-4">Registrar compra</h2>
-
-        <div className="mb-4">
-          <label className="block text-sm text-gray-400 mb-1">Distribuidora *</label>
-          <select
-            value={supplierId}
-            onChange={(e) => setSupplierId(e.target.value)}
-            className="w-full p-3 rounded-lg bg-gray-700"
-          >
-            <option value="">Seleccionar distribuidora</option>
-            {suppliers.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
+        {/* Cliente */}
+        <div className="mb-3">
+          <label className="block text-sm text-gray-400 mb-1">Cliente *</label>
+          <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}
+            className="w-full p-3 rounded-lg bg-gray-700">
+            <option value="">Seleccionar Cliente</option>
+            {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          {selectedSupplier && (selectedSupplier.cuit || selectedSupplier.address) && (
-            <div className="mt-2 text-xs text-gray-500 space-x-3">
-              {selectedSupplier.cuit && <span>CUIT: {selectedSupplier.cuit}</span>}
-              {selectedSupplier.address && <span>Dirección: {selectedSupplier.address}</span>}
-            </div>
-          )}
         </div>
 
-        <div className="bg-gray-700 rounded-xl p-4 mb-4">
-          <p className="text-sm font-bold text-gray-300 mb-3">Agregar producto</p>
-          <div className="grid md:grid-cols-4 gap-3 mb-3">
-            <ProductSearchSelect
-              options={products.map((p) => ({
-                id: p.id,
-                label: p.name,
-                sublabel: `stock: ${p.stock}`,
-              }))}
-              value={productId}
-              onChange={(val) => {
-                setProductId(val);
-                const p = products.find((p) => p.id === Number(val));
-                if (p) setUnitCost(p.purchasePrice);
+        {/* Producto */}
+        <div className="mb-3">
+          <div className="flex justify-between items-center mb-1">
+            <label className="text-sm text-gray-400">Producto</label>
+            <button
+              type="button"
+              onClick={async () => {
+                const res = await api.get('/products');
+                setProducts(res.data);
               }}
-              placeholder="Seleccionar producto"
-            />
-            <input type="number" placeholder="Cantidad" value={quantity} min={1}
-              onChange={(e) => setQuantity(e.target.value)} className="p-3 rounded-lg bg-gray-600" />
-            <input type="number" placeholder="Precio de costo" value={unitCost} min={0} step="0.01"
-              onChange={(e) => setUnitCost(e.target.value)} className="p-3 rounded-lg bg-gray-600" />
-            <button onClick={addItem} className="bg-blue-600 hover:bg-blue-700 rounded-lg font-bold">
-              Agregar
+              className="text-xs text-blue-400 hover:text-blue-300"
+            >
+              ↻ Actualizar lista
             </button>
           </div>
-          {selectedProduct && (
-            <div className="flex items-center gap-3 text-sm">
-              <span className="text-gray-400">
-                Precio de compra actual:{' '}
-                <span className="text-white">{formatARS(selectedProduct.purchasePrice)}</span>
-              </span>
-              <label className="flex items-center gap-2 cursor-pointer ml-auto">
-                <input type="checkbox" checked={updatePrice}
-                  onChange={(e) => setUpdatePrice(e.target.checked)}
-                  className="w-4 h-4 accent-blue-500" />
-                <span className="text-gray-300">Actualizar precio de compra y recalcular venta</span>
-              </label>
-            </div>
-          )}
+          <ProductSearchSelect
+            options={products.filter((p) => p.stock > 0).map((p) => ({ id: p.id, label: p.name, sublabel: `stock: ${p.stock}` }))}
+            value={productId}
+            onChange={handleProductChange}
+            placeholder="Seleccionar Producto"
+          />
         </div>
 
-        <div className="bg-gray-900 rounded-xl overflow-hidden mb-4">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-700">
-              <tr>
-                <th className="p-3 text-left">Producto</th>
-                <th className="p-3 text-left">Cantidad</th>
-                <th className="p-3 text-left">Costo unit.</th>
-                <th className="p-3 text-left">Subtotal</th>
-                <th className="p-3 text-left">Actualiza precio</th>
-                <th className="p-3 text-center">Quitar</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="p-6 text-center text-gray-500">
-                    No hay productos en la compra todavía
-                  </td>
-                </tr>
-              ) : (
-                items.map((item) => (
-                  <tr key={item.productId} className="border-b border-gray-700">
-                    <td className="p-3">{item.productName}</td>
-                    <td className="p-3">{item.quantity}</td>
-                    <td className="p-3 text-gray-400">{formatARS(item.unitCost)}</td>
-                    <td className="p-3 font-bold">{formatARS(item.subtotal)}</td>
-                    <td className="p-3">
-                      {item.updatePrice ? <span className="text-green-400">Sí</span> : <span className="text-gray-500">No</span>}
-                    </td>
-                    <td className="p-3 text-center">
-                      <button onClick={() => removeItem(item.productId)}
-                        className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded-lg text-xs">
-                        Quitar
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        {/* Presentación + Cantidad en grid */}
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Presentación</label>
+            <select value={presentation} onChange={(e) => setPresentation(e.target.value as Presentation)}
+              className="w-full p-3 rounded-lg bg-gray-700" disabled={!selectedProduct}>
+              {selectedProduct
+                ? availablePresentations(selectedProduct).map((pres) => (
+                    <option key={pres} value={pres}>
+                      {PRESENTATION_LABELS[pres]} — {formatARS(getPriceForPresentation(selectedProduct, pres))}
+                    </option>
+                  ))
+                : <option value="UNIDAD">Unidad</option>}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Cantidad</label>
+            <input type="number" placeholder="Ej: 2" value={quantity} min={1}
+              max={selectedProduct?.stock ?? undefined}
+              onChange={(e) => setQuantity(e.target.value)}
+              className="w-full p-3 rounded-lg bg-gray-700" />
+          </div>
         </div>
 
-        {items.length > 0 && (
-          <div className="grid md:grid-cols-2 gap-4 mb-4">
-            <div className="bg-gray-700 p-4 rounded-xl">
-              <p className="text-gray-400 text-sm mb-1">Total de la compra</p>
-              <p className="text-2xl font-bold">{formatARS(total)}</p>
-            </div>
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">
-                Monto pagado (dejá en 0 si quedó todo en deuda)
-              </label>
-              <input type="number" placeholder="0" value={paidAmount} min={0} max={total} step="0.01"
-                onChange={(e) => setPaidAmount(e.target.value)} className="w-full p-3 rounded-lg bg-gray-700" />
-              {paidAmount && Number(paidAmount) < total && (
-                <p className="text-sm text-yellow-400 mt-1">
-                  Quedará pendiente con la distribuidora: {formatARS(total - Number(paidAmount))}
-                </p>
-              )}
-            </div>
+        {/* Info producto */}
+        {selectedProduct && (
+          <div className="text-sm text-gray-400 mb-3 p-3 bg-gray-700 rounded-lg">
+            <span className="text-white font-bold">{selectedProduct.name}</span>
+            {' — '}Stock: <span className={selectedProduct.stock <= 5 ? 'text-red-400 font-bold' : 'text-green-400 font-bold'}>{selectedProduct.stock}</span>
+            {' — '}Precio: <span className="text-white font-bold">{formatARS(unitPrice)}</span>
           </div>
         )}
 
-        <div className="mb-4">
-          <label className="block text-sm text-gray-400 mb-1">Notas (opcional)</label>
-          <input type="text" placeholder="Ej: Factura B N°0001-00012345" value={notes}
-            onChange={(e) => setNotes(e.target.value)} className="w-full p-3 rounded-lg bg-gray-700" />
-        </div>
-
-        <button onClick={createPurchase} disabled={loading}
-          className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-bold">
-          {loading ? 'Registrando...' : 'Registrar Compra'}
+        <button onClick={addItem} className="w-full bg-blue-600 hover:bg-blue-700 rounded-lg font-bold p-3">
+          + Agregar al pedido
         </button>
       </div>
 
-      {/* Historial */}
-      <div className="bg-gray-800 rounded-2xl overflow-hidden">
-        <div className="p-4 border-b border-gray-700">
-          <h2 className="text-xl font-bold">Historial de compras</h2>
-        </div>
+      {/* Items del pedido */}
+      {items.length > 0 && (
+        <div className="mb-6">
+          {/* Desktop — tabla */}
+          <div className="hidden md:block bg-gray-800 rounded-2xl overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-gray-700">
+                <tr>
+                  <th className="p-4 text-left">Producto</th>
+                  <th className="p-4 text-left">Presentación</th>
+                  <th className="p-4 text-left">Cant.</th>
+                  <th className="p-4 text-left">Precio unit.</th>
+                  <th className="p-4 text-left">Subtotal</th>
+                  <th className="p-4 text-center">Quitar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={`${item.productId}-${item.presentation}`} className="border-b border-gray-700">
+                    <td className="p-4">{item.name}</td>
+                    <td className="p-4">
+                      <span className={`px-2 py-1 rounded text-xs font-bold ${item.presentation === 'TIRA' ? 'bg-blue-900 text-blue-300' : item.presentation === 'CAJA' ? 'bg-purple-900 text-purple-300' : 'bg-gray-700 text-gray-300'}`}>
+                        {PRESENTATION_LABELS[item.presentation]}
+                      </span>
+                    </td>
+                    <td className="p-4">{item.quantity}</td>
+                    <td className="p-4">{formatARS(item.unitPrice)}</td>
+                    <td className="p-4 font-bold">{formatARS(item.subtotal)}</td>
+                    <td className="p-4 text-center">
+                      <button onClick={() => removeItem(item.productId, item.presentation)} className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded-lg text-sm">Quitar</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-        {purchases.length === 0 ? (
-          <p className="p-8 text-center text-gray-500">No hay compras registradas todavía</p>
-        ) : (
-          <div className="divide-y divide-gray-700">
-            {purchases.map((purchase) => (
-              <div key={purchase.id} className="p-4">
-                <div className="flex justify-between items-start">
+          {/* Mobile — tarjetas */}
+          <div className="md:hidden space-y-3">
+            {items.map((item) => (
+              <div key={`${item.productId}-${item.presentation}`} className="bg-gray-800 rounded-xl p-4">
+                <div className="flex justify-between items-start mb-2">
                   <div>
-                    <p className="font-bold text-lg">
-                      Compra #{purchase.id} — {purchase.supplier?.name}
-                    </p>
-                    <p className="text-gray-400 text-sm">{formatDate(purchase.createdAt)}</p>
-                    {purchase.notes && (
-                      <p className="text-gray-500 text-sm mt-1">{purchase.notes}</p>
-                    )}
+                    <p className="font-bold text-white">{item.name}</p>
+                    <span className={`px-2 py-0.5 rounded text-xs font-bold mt-1 inline-block ${item.presentation === 'TIRA' ? 'bg-blue-900 text-blue-300' : item.presentation === 'CAJA' ? 'bg-purple-900 text-purple-300' : 'bg-gray-700 text-gray-300'}`}>
+                      {PRESENTATION_LABELS[item.presentation]}
+                    </span>
                   </div>
-                  <div className="text-right space-y-1 text-sm">
-                    <p className="text-gray-400">
-                      Total: <span className="text-white font-bold">{formatARS(purchase.total)}</span>
-                    </p>
-                    <p className="text-gray-400">
-                      Pagado: <span className="text-green-400">{formatARS(purchase.paidAmount)}</span>
-                    </p>
-                    {Number(purchase.pendingAmount) > 0 ? (
-                      <p className="text-red-400 font-bold">
-                        Pendiente: {formatARS(purchase.pendingAmount)}
-                      </p>
-                    ) : (
-                      <p className="text-green-400 font-bold">Pagado ✓</p>
-                    )}
-                  </div>
+                  <button onClick={() => removeItem(item.productId, item.presentation)} className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded-lg text-xs">Quitar</button>
                 </div>
-
-                <div className="flex gap-2 mt-3">
-                  <button
-                    onClick={() => setExpandedId(expandedId === purchase.id ? null : purchase.id)}
-                    className="bg-gray-700 hover:bg-gray-600 px-4 py-1.5 rounded-lg text-sm"
-                  >
-                    {expandedId === purchase.id ? 'Ocultar detalle' : 'Ver detalle'}
-                  </button>
-
-                  {Number(purchase.pendingAmount) > 0 && (
-                    <button
-                      onClick={() => openPaymentModal(purchase)}
-                      className="bg-green-700 hover:bg-green-600 px-4 py-1.5 rounded-lg text-sm font-bold"
-                    >
-                      💳 Registrar pago
-                    </button>
-                  )}
+                <div className="flex justify-between text-sm text-gray-400">
+                  <span>Cant: <span className="text-white font-bold">{item.quantity}</span></span>
+                  <span>Unit: <span className="text-white">{formatARS(item.unitPrice)}</span></span>
+                  <span>Sub: <span className="text-green-400 font-bold">{formatARS(item.subtotal)}</span></span>
                 </div>
-
-                {expandedId === purchase.id && (
-                  <div className="mt-4 bg-gray-700 rounded-xl p-4">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-gray-400 border-b border-gray-600">
-                          <th className="text-left pb-2">Producto</th>
-                          <th className="text-left pb-2">Cantidad</th>
-                          <th className="text-left pb-2">Costo unit.</th>
-                          <th className="text-left pb-2">Subtotal</th>
-                          <th className="text-left pb-2">Precio actualizado</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {purchase.details.map((d) => (
-                          <tr key={d.id} className="border-b border-gray-600 last:border-0">
-                            <td className="py-2">{d.productName}</td>
-                            <td className="py-2">{d.quantity}</td>
-                            <td className="py-2 text-gray-400">{formatARS(d.unitCost)}</td>
-                            <td className="py-2 font-bold">{formatARS(d.subtotal)}</td>
-                            <td className="py-2">
-                              {d.updatePrice
-                                ? <span className="text-green-400">Sí</span>
-                                : <span className="text-gray-500">No</span>}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
               </div>
             ))}
           </div>
-        )}
-      </div>
-
-      {/* Modal nueva distribuidora */}
-      {showSupplierModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <form onSubmit={saveSupplier} className="bg-gray-800 p-8 rounded-2xl w-full max-w-md">
-            <h2 className="text-2xl font-bold mb-6">Nueva Distribuidora</h2>
-            <label className="block text-sm text-gray-400 mb-1">Nombre de fantasía *</label>
-            <input type="text" name="name" placeholder="Ej: Distribuidora Paola"
-              value={supplierForm.name} onChange={handleSupplierChange}
-              className="w-full p-3 rounded-lg bg-gray-700 mb-4" />
-            <label className="block text-sm text-gray-400 mb-1">Dirección *</label>
-            <input type="text" name="address" placeholder="Ej: Av. Colón 1234"
-              value={supplierForm.address} onChange={handleSupplierChange}
-              className="w-full p-3 rounded-lg bg-gray-700 mb-4" />
-            <label className="block text-sm text-gray-400 mb-1">
-              DNI / CUIT / CUIL <span className="text-gray-600">(opcional)</span>
-            </label>
-            <input type="text" name="cuit" placeholder="Ej: 20-12345678-6"
-              value={supplierForm.cuit} onChange={handleSupplierChange}
-              className="w-full p-3 rounded-lg bg-gray-700 mb-1" />
-            <p className="text-xs text-gray-500 mb-4">
-              Si ingresás un CUIT de 11 dígitos se validará el dígito verificador
-            </p>
-            <label className="block text-sm text-gray-400 mb-1">
-              Teléfono <span className="text-gray-600">(opcional)</span>
-            </label>
-            <input type="text" name="phone" placeholder="Ej: 3511234567"
-              value={supplierForm.phone} onChange={handleSupplierChange}
-              className="w-full p-3 rounded-lg bg-gray-700 mb-4" />
-            <label className="block text-sm text-gray-400 mb-1">
-              Notas <span className="text-gray-600">(opcional)</span>
-            </label>
-            <input type="text" name="notes" placeholder="Ej: Entrega los martes"
-              value={supplierForm.notes} onChange={handleSupplierChange}
-              className="w-full p-3 rounded-lg bg-gray-700 mb-6" />
-            {supplierError && (
-              <div className="mb-4 p-3 bg-red-900/50 border border-red-500 rounded-lg text-red-300 text-sm">
-                {supplierError}
-              </div>
-            )}
-            <div className="flex gap-4">
-              <button type="submit" disabled={savingSupplier}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed p-3 rounded-lg font-bold">
-                {savingSupplier ? 'Guardando...' : 'Guardar'}
-              </button>
-              <button type="button" onClick={() => setShowSupplierModal(false)} disabled={savingSupplier}
-                className="flex-1 bg-gray-600 hover:bg-gray-500 disabled:cursor-not-allowed p-3 rounded-lg">
-                Cancelar
-              </button>
-            </div>
-          </form>
         </div>
       )}
 
-      {/* Modal pago a distribuidora */}
-      {paymentPurchase && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <form onSubmit={savePayment} className="bg-gray-800 p-8 rounded-2xl w-full max-w-md">
-            <h2 className="text-2xl font-bold mb-2">Registrar pago</h2>
-            <p className="text-gray-400 text-sm mb-6">
-              Compra #{paymentPurchase.id} — {paymentPurchase.supplier?.name}
-            </p>
-
-            <div className="bg-gray-700 rounded-xl p-4 mb-6 text-sm space-y-1">
-              <div className="flex justify-between">
-                <span className="text-gray-400">Total de la compra:</span>
-                <span className="text-white font-bold">{formatARS(paymentPurchase.total)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Ya pagado:</span>
-                <span className="text-green-400">{formatARS(paymentPurchase.paidAmount)}</span>
-              </div>
-              <div className="flex justify-between border-t border-gray-600 pt-1 mt-1">
-                <span className="text-gray-400 font-bold">Pendiente:</span>
-                <span className="text-red-400 font-bold">{formatARS(paymentPurchase.pendingAmount)}</span>
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center mb-1">
-              <label className="text-sm text-gray-400">Monto a pagar *</label>
-              <button
-                type="button"
-                onClick={() => setPaymentAmount(String(paymentPurchase.pendingAmount))}
-                className="text-xs text-blue-400 hover:text-blue-300 font-bold"
-              >
-                Pagar total
-              </button>
-            </div>
-            <input
-              type="number"
-              placeholder={`Máximo ${formatARS(paymentPurchase.pendingAmount)}`}
-              value={paymentAmount}
-              min={0.01}
-              max={Number(paymentPurchase.pendingAmount)}
-              step="0.01"
-              onChange={(e) => { setPaymentAmount(e.target.value); setPaymentError(''); }}
-              className="w-full p-3 rounded-lg bg-gray-700 mb-2"
-              autoFocus
-            />
-
-            {paymentAmount && Number(paymentAmount) > 0 && Number(paymentAmount) <= Number(paymentPurchase.pendingAmount) && (
-              <p className="text-xs text-gray-400 mb-4">
-                Quedará pendiente:{' '}
-                <span className={Number(paymentPurchase.pendingAmount) - Number(paymentAmount) === 0 ? 'text-green-400 font-bold' : 'text-yellow-400 font-bold'}>
-                  {formatARS(Number(paymentPurchase.pendingAmount) - Number(paymentAmount))}
-                </span>
-              </p>
-            )}
-
-            {paymentError && (
-              <div className="mb-4 p-3 bg-red-900/50 border border-red-500 rounded-lg text-red-300 text-sm">
-                {paymentError}
-              </div>
-            )}
-
-            <div className="flex gap-4">
-              <button type="submit" disabled={savingPayment}
-                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed p-3 rounded-lg font-bold">
-                {savingPayment ? 'Guardando...' : 'Confirmar pago'}
-              </button>
-              <button type="button" onClick={closePaymentModal} disabled={savingPayment}
-                className="flex-1 bg-gray-600 hover:bg-gray-500 disabled:cursor-not-allowed p-3 rounded-lg">
-                Cancelar
-              </button>
-            </div>
-          </form>
+      {/* Empty state */}
+      {items.length === 0 && (
+        <div className="bg-gray-800 rounded-2xl p-8 text-center text-gray-500 mb-6">
+          No hay productos en el pedido todavía
         </div>
+      )}
+
+      {/* Total y botón */}
+      <div className="flex justify-between items-center gap-4">
+        <div>
+          <p className="text-gray-400 text-sm">Total</p>
+          <p className="text-2xl md:text-3xl font-bold text-white">{formatARS(total)}</p>
+        </div>
+        <button onClick={createOrder} disabled={loading}
+          className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed px-6 md:px-8 py-3 md:py-4 rounded-xl font-bold">
+          {loading ? 'Creando...' : 'Crear Pedido'}
+        </button>
+      </div>
+
+      {confirm && (
+        <ConfirmModal
+          message={confirm.message}
+          subMessage={confirm.subMessage}
+          confirmLabel={confirm.confirmLabel}
+          confirmColor={confirm.confirmColor}
+          onConfirm={confirm.onConfirm}
+          onCancel={() => setConfirm(null)}
+        />
       )}
     </div>
   );

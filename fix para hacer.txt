@@ -1,0 +1,9 @@
+agregar botón "limpiar" en los buscadores, para poder volver a la lista sin estar borrando todo lo escrito
+
+arreglar el frontend, cuando posas el mouse en "nuevo pedido" e "historial" se quedan pegados. SIGUE PENDIENTE
+
+Agrandar la columna "Stock" de la sección productos. ya que la palabra "sin stock" no entra y se corta
+
+en la seccion "cuentas corrientes" poder hacer click en cada cuenta de cliente y poder ver sus pedidos realizados. OK pero no enlaza los pedidos de los cliente. el menu se despliega, pero no muestra ningun pedido, a pesar de tener cargados.
+
+agregar en la sección "Productos" entre Categoria y Margen, los precios originales de unidad, tira y caja. dentro de un mismo modal, no hacer uno para cada uno.
