@@ -96,8 +96,8 @@ const EMPTY_SUPPLIER_FORM = {
 };
 
 export default function PurchasesPage() {
-  const { role } = useAuth();
-  const isAdmin = role === 'ADMIN';
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
