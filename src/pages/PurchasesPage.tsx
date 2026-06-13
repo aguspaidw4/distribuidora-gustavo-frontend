@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../api/axios';
+import { useAuth } from '../auth/AuthContext';
 
 type Supplier = {
   id: number;
@@ -41,7 +42,7 @@ type Purchase = {
   pendingAmount: string;
   notes: string;
   createdAt: string;
-  supplier: { name: string };
+  supplier: { id: number; name: string };
   details: PurchaseDetail[];
 };
 
@@ -95,6 +96,9 @@ const EMPTY_SUPPLIER_FORM = {
 };
 
 export default function PurchasesPage() {
+  const { role } = useAuth();
+  const isAdmin = role === 'ADMIN';
+
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
@@ -122,6 +126,12 @@ export default function PurchasesPage() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [savingPayment, setSavingPayment] = useState(false);
   const [paymentError, setPaymentError] = useState('');
+
+  // Modal cambiar distribuidora de una compra (solo ADMIN)
+  const [editSupplierPurchase, setEditSupplierPurchase] = useState<Purchase | null>(null);
+  const [editSupplierId, setEditSupplierId] = useState('');
+  const [savingEditSupplier, setSavingEditSupplier] = useState(false);
+  const [editSupplierError, setEditSupplierError] = useState('');
 
   async function loadData() {
     try {
@@ -236,6 +246,49 @@ export default function PurchasesPage() {
     }
   }
 
+  // ── Cambiar distribuidora de una compra ──
+  function openEditSupplierModal(purchase: Purchase) {
+    setEditSupplierPurchase(purchase);
+    setEditSupplierId(String(purchase.supplier?.id ?? ''));
+    setEditSupplierError('');
+  }
+
+  function closeEditSupplierModal() {
+    setEditSupplierPurchase(null);
+    setEditSupplierId('');
+    setEditSupplierError('');
+  }
+
+  async function saveEditSupplier(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editSupplierPurchase) return;
+    setEditSupplierError('');
+
+    if (!editSupplierId) {
+      setEditSupplierError('Seleccioná una distribuidora');
+      return;
+    }
+
+    if (Number(editSupplierId) === editSupplierPurchase.supplier?.id) {
+      setEditSupplierError('La distribuidora seleccionada es la misma que la actual');
+      return;
+    }
+
+    setSavingEditSupplier(true);
+    try {
+      await api.patch(`/purchases/${editSupplierPurchase.id}/supplier`, {
+        supplierId: Number(editSupplierId),
+      });
+      closeEditSupplierModal();
+      loadData();
+    } catch (error: any) {
+      const msg = error.response?.data?.message;
+      setEditSupplierError(typeof msg === 'string' ? msg : 'Error al actualizar la distribuidora');
+    } finally {
+      setSavingEditSupplier(false);
+    }
+  }
+
   // ── Compra ──
   function addItem() {
     if (!productId) { alert('Seleccioná un producto'); return; }
@@ -324,21 +377,21 @@ export default function PurchasesPage() {
   const selectedSupplier = suppliers.find((s) => s.id === Number(supplierId));
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
 
       {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-4xl font-bold">Compras a Distribuidoras</h1>
+      <div className="flex flex-col gap-3 mb-6 md:flex-row md:justify-between md:items-center md:mb-8">
+        <h1 className="text-3xl md:text-4xl font-bold">Compras a Distribuidoras</h1>
         <button
           onClick={openSupplierModal}
-          className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-bold"
+          className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-bold w-full md:w-auto"
         >
           + Nueva Distribuidora
         </button>
       </div>
 
       {/* Formulario nueva compra */}
-      <div className="bg-gray-800 p-6 rounded-2xl mb-8">
+      <div className="bg-gray-800 p-4 md:p-6 rounded-2xl mb-8">
         <h2 className="text-xl font-bold mb-4">Registrar compra</h2>
 
         <div className="mb-4">
@@ -375,7 +428,8 @@ export default function PurchasesPage() {
               ↻ Actualizar lista
             </button>
           </div>
-          <div className="grid md:grid-cols-4 gap-3 mb-3">
+          {/* Selector de producto — ocupa ancho completo */}
+          <div className="mb-3">
             <select
               value={productId}
               onChange={(e) => {
@@ -383,38 +437,43 @@ export default function PurchasesPage() {
                 const p = products.find((p) => p.id === Number(e.target.value));
                 if (p) setUnitCost(p.purchasePrice);
               }}
-              className="p-3 rounded-lg bg-gray-600"
+              className="w-full p-3 rounded-lg bg-gray-600"
             >
               <option value="">Seleccionar producto</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>{p.name} — stock: {p.stock}</option>
               ))}
             </select>
+          </div>
+
+          {/* Cantidad y Precio en grilla 2 columnas + botón abajo */}
+          <div className="grid grid-cols-2 gap-3 mb-3">
             <input type="number" placeholder="Cantidad" value={quantity} min={1}
               onChange={(e) => setQuantity(e.target.value)} className="p-3 rounded-lg bg-gray-600" />
             <input type="number" placeholder="Precio de costo" value={unitCost} min={0} step="0.01"
               onChange={(e) => setUnitCost(e.target.value)} className="p-3 rounded-lg bg-gray-600" />
-            <button onClick={addItem} className="bg-blue-600 hover:bg-blue-700 rounded-lg font-bold">
-              Agregar
-            </button>
           </div>
+          <button onClick={addItem} className="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded-lg font-bold mb-3">
+            Agregar
+          </button>
+
           {selectedProduct && (
-            <div className="flex items-center gap-3 text-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-sm">
               <span className="text-gray-400">
                 Precio de compra actual:{' '}
                 <span className="text-white">{formatARS(selectedProduct.purchasePrice)}</span>
               </span>
-              <label className="flex items-center gap-2 cursor-pointer ml-auto">
+              <label className="flex items-center gap-2 cursor-pointer sm:ml-auto">
                 <input type="checkbox" checked={updatePrice}
                   onChange={(e) => setUpdatePrice(e.target.checked)}
                   className="w-4 h-4 accent-blue-500" />
-                <span className="text-gray-300">Actualizar precio de compra y recalcular venta</span>
+                <span className="text-gray-300">Actualizar precio y recalcular venta</span>
               </label>
             </div>
           )}
         </div>
 
-        <div className="bg-gray-900 rounded-xl overflow-hidden mb-4">
+        <div className="bg-gray-900 rounded-xl overflow-x-auto mb-4">
           <table className="w-full text-sm">
             <thead className="bg-gray-700">
               <tr>
@@ -441,11 +500,16 @@ export default function PurchasesPage() {
                     <td className="p-3 text-gray-400">{formatARS(item.unitCost)}</td>
                     <td className="p-3 font-bold">{formatARS(item.subtotal)}</td>
                     <td className="p-3">
-                      {item.updatePrice ? <span className="text-green-400">Sí</span> : <span className="text-gray-500">No</span>}
+                      {item.updatePrice
+                        ? <span className="text-green-400">Sí</span>
+                        : <span className="text-gray-500">No</span>}
                     </td>
                     <td className="p-3 text-center">
                       <div className="flex gap-2 justify-center">
-                        <button onClick={() => editItem(item)} className="bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded-lg text-xs font-bold">Editar</button>
+                        <button onClick={() => editItem(item)}
+                          className="bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded-lg text-xs font-bold">
+                          Editar
+                        </button>
                         <button onClick={() => removeItem(item.productId)}
                           className="bg-red-600 hover:bg-red-700 px-3 py-1 rounded-lg text-xs">
                           Quitar
@@ -531,7 +595,7 @@ export default function PurchasesPage() {
                   </div>
                 </div>
 
-                <div className="flex gap-2 mt-3">
+                <div className="flex flex-wrap gap-2 mt-3">
                   <button
                     onClick={() => setExpandedId(expandedId === purchase.id ? null : purchase.id)}
                     className="bg-gray-700 hover:bg-gray-600 px-4 py-1.5 rounded-lg text-sm"
@@ -545,6 +609,16 @@ export default function PurchasesPage() {
                       className="bg-green-700 hover:bg-green-600 px-4 py-1.5 rounded-lg text-sm font-bold"
                     >
                       💳 Registrar pago
+                    </button>
+                  )}
+
+                  {/* Botón solo para ADMIN */}
+                  {isAdmin && (
+                    <button
+                      onClick={() => openEditSupplierModal(purchase)}
+                      className="bg-yellow-700 hover:bg-yellow-600 px-4 py-1.5 rounded-lg text-sm font-bold"
+                    >
+                      ✏️ Cambiar distribuidora
                     </button>
                   )}
                 </div>
@@ -662,7 +736,16 @@ export default function PurchasesPage() {
               </div>
             </div>
 
-            <label className="block text-sm text-gray-400 mb-1">Monto a pagar *</label>
+            <div className="flex justify-between items-center mb-1">
+              <label className="text-sm text-gray-400">Monto a pagar *</label>
+              <button
+                type="button"
+                onClick={() => setPaymentAmount(String(paymentPurchase.pendingAmount))}
+                className="text-xs text-blue-400 hover:text-blue-300 font-bold"
+              >
+                Pagar total
+              </button>
+            </div>
             <input
               type="number"
               placeholder={`Máximo ${formatARS(paymentPurchase.pendingAmount)}`}
@@ -696,6 +779,54 @@ export default function PurchasesPage() {
                 {savingPayment ? 'Guardando...' : 'Confirmar pago'}
               </button>
               <button type="button" onClick={closePaymentModal} disabled={savingPayment}
+                className="flex-1 bg-gray-600 hover:bg-gray-500 disabled:cursor-not-allowed p-3 rounded-lg">
+                Cancelar
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal cambiar distribuidora (solo ADMIN) */}
+      {editSupplierPurchase && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <form onSubmit={saveEditSupplier} className="bg-gray-800 p-8 rounded-2xl w-full max-w-md">
+            <h2 className="text-2xl font-bold mb-2">Cambiar distribuidora</h2>
+            <p className="text-gray-400 text-sm mb-6">
+              Compra #{editSupplierPurchase.id} — {formatDate(editSupplierPurchase.createdAt)}
+            </p>
+
+            <div className="bg-gray-700 rounded-xl p-4 mb-6 text-sm">
+              <p className="text-gray-400 mb-1">Distribuidora actual:</p>
+              <p className="text-white font-bold">{editSupplierPurchase.supplier?.name}</p>
+            </div>
+
+            <label className="block text-sm text-gray-400 mb-1">Nueva distribuidora *</label>
+            <select
+              value={editSupplierId}
+              onChange={(e) => { setEditSupplierId(e.target.value); setEditSupplierError(''); }}
+              className="w-full p-3 rounded-lg bg-gray-700 mb-6"
+            >
+              <option value="">Seleccionar distribuidora</option>
+              {suppliers
+                .filter((s) => s.id !== editSupplierPurchase.supplier?.id)
+                .map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+            </select>
+
+            {editSupplierError && (
+              <div className="mb-4 p-3 bg-red-900/50 border border-red-500 rounded-lg text-red-300 text-sm">
+                {editSupplierError}
+              </div>
+            )}
+
+            <div className="flex gap-4">
+              <button type="submit" disabled={savingEditSupplier}
+                className="flex-1 bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 disabled:cursor-not-allowed p-3 rounded-lg font-bold">
+                {savingEditSupplier ? 'Guardando...' : 'Confirmar cambio'}
+              </button>
+              <button type="button" onClick={closeEditSupplierModal} disabled={savingEditSupplier}
                 className="flex-1 bg-gray-600 hover:bg-gray-500 disabled:cursor-not-allowed p-3 rounded-lg">
                 Cancelar
               </button>
